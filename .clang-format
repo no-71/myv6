@@ -1,0 +1,16 @@
+Language: Cpp
+IndentWidth: 4
+BasedOnStyle: LLVM
+
+# space after (type)
+# eg: true: (int) a, false: (int)a
+# SpaceAfterCStyleCast: true
+
+# space after { and befor }
+# eg: { 1, 2 }
+Cpp11BracedListStyle: false
+
+# insert line after it
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true

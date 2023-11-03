@@ -16,12 +16,13 @@ OBJDUMP = $(toolprefix)objdump
 
 CFLAGS = -Wall -Werror -fno-omit-frame-pointer
 CFLAGS += -O
-CFLAGS += -I.
+CFLAGS += -I$(include_dir_head)/
 CFLAGS += -fno-stack-protector
 CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
+DB_DEEPTH = -ggdb3
 ifdef alldb
-    CDBFLAGS = -ggdb3
+    CDBFLAGS = $(DB_DEEPTH)
 endif
 
 LDFLAGS = -z max-page-size=4096
@@ -30,15 +31,18 @@ ldscrip = $(src)/kernel.ld
 # src
 include_dir_head := include
 
+# c and asm files in src
 src := src
 c_files := $(shell find $(src)/ -name "*.c")
 c_dirs := $(sort $(dir $(c_files)))
 asm_files := $(shell find $(src)/ -name "*.S")
 asm_dirs := $(sort $(dir $(asm_files)))
 
+# all src files
 src_files := $(c_files) $(asm_files)
 src_dirs := $(sort $(c_dirs) $(asm_dirs))
 
+# output files
 obj_dir_head := out
 obj_files_0 := $(addprefix $(obj_dir_head)/,$(subst .c,.o,$(c_files)) $(subst .S,.o,$(asm_files)))
 obj_dirs := $(addprefix $(obj_dir_head)/,$(src_dirs))
@@ -46,13 +50,12 @@ obj_dirs := $(addprefix $(obj_dir_head)/,$(src_dirs))
 # sweat like a pig, bro.
 obj_files := $(filter %/entry.o,$(obj_files_0)) $(filter-out %/entry.o, $(obj_files_0))
 
+# .S files to be objdump
 dump_asm_files := $(subst .o,.S,$(obj_files))
 
+# the palce of the final output kernel
 the_kernel := $(obj_dir_head)/kernel
 the_kernel_asm := $(addsuffix .S,$(the_kernel))
-
-# create all output dirs in out/
-create_all_dirs_cmd = $(shell for d in $(obj_dirs); do if [ ! -d $$d ]; then mkdir -p $$d; fi; done)
 
 # qemu
 qemu = qemu-system-riscv64
@@ -60,22 +63,39 @@ qemu = qemu-system-riscv64
 gdbport = $(shell expr `id -u` % 5000 + 25000)
 qemu_gdbopts = -S -gdb tcp::$(gdbport)
 
-qemu_opts = -machine virt -bios none -kernel $(the_kernel)
-qemu_opts += -m 128M -smp $(cpus) -nographic
+qemu_machine_opts = -machine virt -bios none
+qemu_machine_opts += -m 128M -smp $(cpus) -nographic
+qemu_kernel_place_opts = -kernel $(the_kernel)
+qemu_opts = $(qemu_machine_opts) $(qemu_kernel_place_opts)
+
+# qemu-dtb
+qemu_dtb_dir := $(obj_dir_head)/dtb
+qemu_dtb := $(qemu_dtb_dir)/riscv64-virt.dtb
+qemu_dts := $(subst .dtb,.dts,$(qemu_dtb))
+qemu-dtb-opts = -machine dumpdtb=$(qemu_dtb)
+
+# create all output dirs in out/
+dirs_to_be_created := $(obj_dirs) $(qemu_dtb_dir)
+create_all_dirs_cmd = $(shell for d in $(dirs_to_be_created); do if [ ! -d $$d ]; then mkdir -p $$d; fi; done)
 
 $(the_kernel): create_all_out_dirs $(obj_files)
 	$(LD) $(LDFLAGS) -T $(ldscrip) -o $(the_kernel) $(obj_files)
 	$(OBJDUMP) -S $(the_kernel) > $(the_kernel_asm)
+	@echo ""
 
-qemu: $(the_kernel)
+q: $(the_kernel)
 	$(qemu) $(qemu_opts)
 
-db: CDBFLAGS = -ggdb3
+db: CDBFLAGS = $(DB_DEEPTH)
 db: clean $(the_kernel)
-	@echo ">>> start qemu-gdb"
+	@echo ">>> qemu-gdb start, run gdb-multiarch in other window"
 	$(qemu) $(qemu_opts) $(qemu_gdbopts)
 
 all_asm: $(obj_files) $(dump_asm_files)
+
+dtb: create_all_out_dirs
+	$(qemu) $(qemu_machine_opts) $(qemu-dtb-opts)
+	dtc -I dtb -O dts -o $(qemu_dts) $(qemu_dtb)
 
 $(obj_dir_head)/%.o: %.c
 	$(CC) $(CFLAGS) $(CDBFLAGS) $< -c -o $@
