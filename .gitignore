@@ -1,4 +1,3 @@
 .cache/
-.clangformat
 compile_commands.json
 out/
