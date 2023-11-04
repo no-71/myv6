@@ -1,5 +1,5 @@
-#ifndef RISCV_H_
-#define RISCV_H_
+#ifndef REGS_H_
+#define REGS_H_
 
 #include "config/basic_types.h"
 
@@ -53,8 +53,9 @@
 #define XIP_MEIP (1 << 11)
 
 // read and write regs/csrs
+// use static inline to avoid multi-def error when link
 #define READ_REG_FN(REG)                                                       \
-    inline uint64 r_##REG()                                                    \
+    static inline uint64 r_##REG()                                             \
     {                                                                          \
         uint64 x;                                                              \
         asm volatile("mv "                                                     \
@@ -64,13 +65,13 @@
     }
 
 #define WRITE_REG_FN(REG)                                                      \
-    inline void w_##REG(uint64 x)                                              \
+    static inline void w_##REG(uint64 x)                                       \
     {                                                                          \
-        asm volatile("csrw " #REG ", %0" ::"r"(x));                            \
+        asm volatile("mv " #REG ", %0" ::"r"(x));                              \
     }
 
 #define READ_CSR_FN(CSR)                                                       \
-    inline uint64 r_##CSR()                                                    \
+    static inline uint64 r_##CSR()                                             \
     {                                                                          \
         uint64 x;                                                              \
         asm volatile("csrr "                                                   \
@@ -80,7 +81,7 @@
     }
 
 #define WRITE_CSR_FN(CSR)                                                      \
-    inline void w_##CSR(uint64 x)                                              \
+    static inline void w_##CSR(uint64 x)                                       \
     {                                                                          \
         asm volatile("csrw " #CSR ", %0" ::"r"(x));                            \
     }

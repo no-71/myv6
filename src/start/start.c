@@ -1,12 +1,12 @@
 #include "config/basic_config.h"
 #include "config/basic_types.h"
 #include "riscv/clint.h"
-#include "riscv/csrs.h"
+#include "riscv/regs.h"
 
 extern void time_trap_vec(void);
 extern void main(void);
 
-char kstack_for_scheduler[4096];
+char kstack_for_scheduler[NCPUS][PGSIZE];
 uint64 mtime_setting[6];
 
 void set_m_csrs(void);
@@ -22,7 +22,7 @@ void start(void)
 void set_m_csrs(void)
 {
     uint64 ms = r_mstatus();
-    // hard ward config
+    // hard ware config
     ms &= ~XSTATUS_MPRV;
     ms &= ~XSTATUS_SUM;
     ms &= ~XSTATUS_MXR;
@@ -39,12 +39,10 @@ void set_m_csrs(void)
 
     // disable paging for s-mode
     w_satp(0x0);
-
     // disable interrput for s-mode
-    uint64 ss = r_sstatus();
-    ss &= ~XSTATUS_SIE;
-    w_sstatus(ss);
+    w_sstatus(r_sstatus() & (~XSTATUS_SIE));
 
+    // deleg exceptions and interrputs to s-mode
     w_medeleg(0xffff);
     w_mideleg(0xffff);
 }
@@ -52,13 +50,9 @@ void set_m_csrs(void)
 void setup_time_trap(void)
 {
     // prepare for mret to s-mode
-    uint64 ms = r_mstatus();
-    ms |= XSTATUS_MPIE;
-    w_mstatus(ms);
+    w_mstatus(r_mstatus() | XSTATUS_MPIE);
 
-    uint64 mie = r_mie();
-    mie |= XIE_MTIE;
-    w_mie(mie);
+    w_mie(r_mie() | XIE_MTIE);
 
     uint64 hart_id = r_tp();
     // ask clint for starting time interrput

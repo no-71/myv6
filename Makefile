@@ -16,7 +16,7 @@ OBJDUMP = $(toolprefix)objdump
 
 CFLAGS = -Wall -Werror -fno-omit-frame-pointer
 CFLAGS += -O
-CFLAGS += -I$(include_dir_head)/
+CFLAGS += $(addprefix -I,$(include_dir_head))
 CFLAGS += -fno-stack-protector
 CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
@@ -28,8 +28,8 @@ endif
 LDFLAGS = -z max-page-size=4096
 ldscrip = $(src)/kernel.ld
 
-# src
-include_dir_head := include
+# include files
+include_dir_head := include .
 
 # c and asm files in src
 src := src
@@ -89,7 +89,7 @@ q: $(the_kernel)
 
 db: CDBFLAGS = $(DB_DEEPTH)
 db: clean $(the_kernel)
-	@echo ">>> qemu-gdb start, run gdb-multiarch in other window"
+	@echo ">>> qemu-gdb starts, run gdb-multiarch in other window"
 	$(qemu) $(qemu_opts) $(qemu_gdbopts)
 
 all_asm: $(obj_files) $(dump_asm_files)

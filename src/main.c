@@ -1,16 +1,16 @@
-#include "riscv/csrs.h"
-
-void tv(void)
-{
-    w_sip(0x0);
-    asm volatile("sret");
-}
+#include "driver/uart.h"
+#include "riscv/regs.h"
+#include "trap/introff.h"
+#include "util/kprint.h"
 
 void main(void)
 {
-    w_sstatus(r_sstatus() | XSTATUS_SIE);
-    w_sie(r_sie() | XIE_SSIE);
-    w_stvec((int64)tv);
+    uartinit();
+
+    kprintf("hello, tinyos\n");
+    kprintf("tinyos starts booting\n");
+    panic("panic test");
+
     while (1) {
     }
 }
