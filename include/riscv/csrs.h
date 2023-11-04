@@ -52,6 +52,7 @@
 #define XIP_SEIP (1 << 9)
 #define XIP_MEIP (1 << 11)
 
+// read and write regs/csrs
 #define READ_REG_FN(REG)                                                       \
     inline uint64 r_##REG()                                                    \
     {                                                                          \
@@ -88,12 +89,12 @@
 #define WRITE_MS_CSR_FN(CSR) WRITE_CSR_FN(m##CSR) WRITE_CSR_FN(s##CSR)
 #define READ_N_WRITE_MS_CSR_FN(CSR) READ_MS_CSR_FN(CSR) WRITE_MS_CSR_FN(CSR)
 
-// trap setup
+// s/m-mode trap setup
 READ_N_WRITE_MS_CSR_FN(status)
 READ_N_WRITE_MS_CSR_FN(ie)
 READ_N_WRITE_MS_CSR_FN(tvec)
 
-// trap handling
+// s/m-mode trap handling
 READ_N_WRITE_MS_CSR_FN(scratch)
 READ_N_WRITE_MS_CSR_FN(epc)
 READ_N_WRITE_MS_CSR_FN(cause)

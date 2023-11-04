@@ -1,4 +1,4 @@
-.section .text
+.text
 .global _entry
 _entry:
     csrr tp, mhartid

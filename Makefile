@@ -48,7 +48,8 @@ obj_files_0 := $(addprefix $(obj_dir_head)/,$(subst .c,.o,$(c_files)) $(subst .S
 obj_dirs := $(addprefix $(obj_dir_head)/,$(src_dirs))
 # the ENTRY(_entry) in kernel.ld won't works somhow, try to fix it in this ugly ways.
 # sweat like a pig, bro.
-obj_files := $(filter %/entry.o,$(obj_files_0)) $(filter-out %/entry.o, $(obj_files_0))
+# obj_files := $(filter %/entry.o,$(obj_files_0)) $(filter-out %/entry.o, $(obj_files_0))
+obj_files := $(obj_files_0)
 
 # .S files to be objdump
 dump_asm_files := $(subst .o,.S,$(obj_files))
@@ -78,7 +79,7 @@ qemu-dtb-opts = -machine dumpdtb=$(qemu_dtb)
 dirs_to_be_created := $(obj_dirs) $(qemu_dtb_dir)
 create_all_dirs_cmd = $(shell for d in $(dirs_to_be_created); do if [ ! -d $$d ]; then mkdir -p $$d; fi; done)
 
-$(the_kernel): create_all_out_dirs $(obj_files)
+$(the_kernel): create_all_out_dirs $(ldscrip) $(obj_files)
 	$(LD) $(LDFLAGS) -T $(ldscrip) -o $(the_kernel) $(obj_files)
 	$(OBJDUMP) -S $(the_kernel) > $(the_kernel_asm)
 	@echo ""
