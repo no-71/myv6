@@ -1,6 +1,8 @@
 #ifndef BASIC_TYPES_H_
 #define BASIC_TYPES_H_
 
+#include <stddef.h>
+
 typedef char int8;
 typedef short int16;
 typedef int int32;

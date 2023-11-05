@@ -2,11 +2,12 @@
 #include "config/basic_types.h"
 #include "riscv/clint.h"
 #include "riscv/regs.h"
+#include "riscv/vm_system.h"
 
 extern void time_trap_vec(void);
 extern void main(void);
 
-char kstack_for_scheduler[NCPUS][PGSIZE];
+__attribute__((aligned(16))) char kstack_for_scheduler[NCPUS][PGSIZE];
 uint64 mtime_setting[6];
 
 void set_m_csrs(void);

@@ -1,8 +1,6 @@
 #ifndef UART_H_
 #define UART_H_
 
-#include "riscv/regs.h"
-
 #define UART_BASE 0x10000000
 #define UART_REG(REG) (UART_BASE + REG)
 #define READ_UART_REG(REG) (*(volatile char *)UART_REG(REG))

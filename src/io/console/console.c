@@ -2,6 +2,8 @@
 #include "driver/uart.h"
 #include "trap/introff.h"
 
+void console_init() { uartinit(); }
+
 void console_kputc(char c)
 {
     push_introff();

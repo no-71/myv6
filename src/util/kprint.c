@@ -51,8 +51,7 @@ void kprintf(const char *fmt, ...)
     char *s;
 
     if (fmt == 0) {
-        while (1) {
-        }
+        panic("try to kprint(null)");
     }
 
     va_start(ap, fmt);
@@ -94,10 +93,12 @@ void kprintf(const char *fmt, ...)
     }
 }
 
-void panic(const char *s)
+void panic_2str(const char *s1, const char *s2)
 {
     panicked = 1;
-    kprintf("panic: %s\n", s);
+    kprintf("panic: %s%s\n", s1, s2);
     while (1) {
     }
 }
+
+void panic(const char *s) { panic_2str(s, ""); }
