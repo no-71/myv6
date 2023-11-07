@@ -3,6 +3,7 @@
 
 #include "config/basic_types.h"
 #include "riscv/vm_system.h"
+#include "vm/kalloc.h"
 
 #define ROUND_UP_PGSIZE(ADDR) ((((uint64)(ADDR)) + PGSIZE - 1) & (~PGSIZE_MASK))
 #define ROUND_DOWN_PGSIZE(ADDR) (((uint64)(ADDR)) & (~PGSIZE_MASK))
@@ -16,5 +17,31 @@ int map_n_pages(page_table pgtable, uint64 va, int n, uint64 pa,
                 uint64 attribute);
 void unmap_page(page_table pgtable, uint64 va);
 void unmap_n_pages(page_table pgtable, uint64 va, int n);
+
+// db
+void vmprint_accurate(page_table pgtable, int max_depth, int max_level_count);
+void vmprint(page_table pgtable);
+
+static inline void *get_clear_page()
+{
+    void *pg = kalloc();
+    if (pg == NULL) {
+        return NULL;
+    }
+
+    memset(pg, 0, PGSIZE);
+    return pg;
+}
+
+static inline int init_page_table(page_table *pgtable)
+{
+    void *pg = get_clear_page();
+    if (pg == NULL) {
+        return 1;
+    }
+
+    *pgtable = pg;
+    return 0;
+}
 
 #endif

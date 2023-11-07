@@ -29,18 +29,18 @@ static inline void rw_mem(struct node *cur, void (*map)(uint64 *, uint64))
 
 static inline void write_to_mem(uint64 *w, uint64 val) { *w = val; }
 
+#define GARBAGE_VAL 0x0505##0505##0505##0505
+
 static inline void check_mem(uint64 *w, uint64 val)
 {
     if (*w != val) {
         PANIC_FN("find incorresponding value (compared with write value)");
     }
-#define GARBAGE_VAL 0x0505##0505##0505##0505
     *w = GARBAGE_VAL;
 }
 
 static inline void rw_mem_test(void)
 {
-#ifdef TEST_ENABLE
     struct node *cur = mem_container.head;
     if (cur == NULL) {
         KPRINT_FN("mem head is NULL\n");
@@ -49,9 +49,6 @@ static inline void rw_mem_test(void)
 
     rw_mem(cur, write_to_mem);
     rw_mem(cur, check_mem);
-
-    KPRINT_FN("succesfull\n");
-#endif
 }
 
 #endif

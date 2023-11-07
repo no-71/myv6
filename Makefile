@@ -60,8 +60,10 @@ qemu = qemu-system-riscv64
 gdbport = $(shell expr `id -u` % 5000 + 25000)
 qemu_gdbopts = -S -gdb tcp::$(gdbport)
 
+qemu_mem_size = 128M
+
 qemu_machine_opts = -machine virt -bios none
-qemu_machine_opts += -m 128M -smp $(cpus) -nographic
+qemu_machine_opts += -m $(qemu_mem_size) -smp $(cpus) -nographic
 qemu_kernel_place_opts = -kernel $(the_kernel)
 qemu_opts = $(qemu_machine_opts) $(qemu_kernel_place_opts)
 

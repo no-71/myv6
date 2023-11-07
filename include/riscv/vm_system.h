@@ -2,8 +2,10 @@
 #define VM_SYSTEM_H_
 
 #define PGSIZE_BITS 12
-#define PGSIZE (1 << PGSIZE_BITS)
+#define PGSIZE (1L << PGSIZE_BITS)
 #define PGSIZE_MASK ((1L << PGSIZE_BITS) - 1L)
+
+#define MAX_VA ((1L << 38) - 1)
 
 #define MAX_LEVEL 2
 
@@ -34,8 +36,15 @@
 #define PTE_GET_PA(PTE) (PTE_GET_PPN(PTE) << PGSIZE_BITS)
 
 #define MAKE_PTE(PA, ATTRIBUTE)                                                \
-    ((((PA) << PTE_ATTRIBUTE_BITS) & PTE_PPN_MASK) |                           \
+    (((((PA) >> PGSIZE_BITS) << PTE_ATTRIBUTE_BITS) & PTE_PPN_MASK) |          \
      ((ATTRIBUTE)&PTE_ATTRIBUTE_MASK))
+
+#define SATP_MODE_SV39 8
+#define SATP_MODE_BITS 60
+#define SATP_PPN_MASK ((1L << 44) - 1)
+#define MAKE_SATP(PGTB)                                                        \
+    (((uint64)SATP_MODE_SV39 << SATP_MODE_BITS) |                              \
+     (((PGTB) >> PGSIZE_BITS) & SATP_PPN_MASK))
 
 static inline void sfence_vma_all()
 {

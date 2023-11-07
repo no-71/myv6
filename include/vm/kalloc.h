@@ -1,6 +1,8 @@
 #ifndef KALLOC_H_
 #define KALLOC_H_
 
+#include "config/basic_types.h"
+
 struct node {
     struct node *next;
 };

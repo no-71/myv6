@@ -1,8 +1,10 @@
 #include "io/console/console.h"
 #include "test/test_config.h"
-#include "test/vm/rw_test.h"
+#include "test/vm/kalloc_test.h"
+#include "test/vm/kvm_test.h"
 #include "util/kprint.h"
 #include "vm/kalloc.h"
+#include "vm/kvm.h"
 
 void main(void)
 {
@@ -14,7 +16,11 @@ void main(void)
     kprintf("\n");
 
     kalloc_init();
-    rw_mem_test();
+    kalloc_test();
+
+    kvm_init();
+    kvm_init_hart();
+    kvm_test();
 
     panic("panic test");
 
