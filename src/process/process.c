@@ -1,5 +1,7 @@
 #include "process/process.h"
+#include "binary_code/init_code_binary.h"
 #include "cpus.h"
+#include "process/process_loader.h"
 #include "riscv/vm_system.h"
 #include "trap/introff.h"
 #include "trap/trampoline.h"
@@ -152,7 +154,11 @@ void setup_init_proc(void)
         PANIC_FN("setup init proc fail");
     }
 
-    // set up user space memory
+    int err = load_process_elf(proc->proc_pgtable, init_code_binary,
+                               init_code_binary_size);
+    if (err) {
+        PANIC_FN("fail to setup init process");
+    }
 
-    // set up user space stack(sp)
+    proc->status = RUNABLE;
 }

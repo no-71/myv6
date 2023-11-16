@@ -11,12 +11,17 @@
 typedef uint64 pte;
 typedef pte *page_table;
 
-void *memset(void *m, int val, int len);
+void *memset(void *m, int val, size_t len);
+void *memcpy(void *dest, void *src, size_t len);
+
 int map_page(page_table pgtable, uint64 va, uint64 pa, uint64 attribute);
 int map_n_pages(page_table pgtable, uint64 va, int n, uint64 pa,
                 uint64 attribute);
+
 void unmap_page(page_table pgtable, uint64 va);
+void unmap_pages_free(page_table pgtable, uint64 va);
 void unmap_n_pages(page_table pgtable, uint64 va, int n);
+void unmap_n_pages_free(page_table pgtable, uint64 va, int n);
 void free_page_table(page_table pgtable);
 
 // db

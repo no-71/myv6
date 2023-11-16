@@ -1,11 +1,12 @@
 #include "sys_calls.h"
 
-const char s[] = "dear";
+char s[] = "dear";
 
 int main(void)
 {
     trap_into_k();
     while (1) {
+        s[0] = 'b';
     }
 
     return 1;

@@ -3,15 +3,25 @@
 #include "util/kprint.h"
 #include "vm/kalloc.h"
 #include "vm/memory_layout.h"
+#include <stddef.h>
 
 enum { ALLOC, NO_ALLOC };
+enum { FREE, NO_FREE };
 
-void *memset(void *m, int val, int len)
+void *memset(void *m, int val, size_t len)
 {
-    for (int i = 0; i < len; i++) {
+    for (size_t i = 0; i < len; i++) {
         ((char *)m)[i] = (char)val;
     }
     return m;
+}
+
+void *memcpy(void *dest, void *src, size_t len)
+{
+    for (size_t i = 0; i < len; i++) {
+        ((char *)dest)[i] = ((char *)src)[i];
+    }
+    return dest;
 }
 
 /**
@@ -92,22 +102,47 @@ int map_n_pages(page_table pgtable, uint64 va, int n, uint64 pa,
     return 0;
 }
 
-void unmap_page(page_table pgtable, uint64 va)
+void unmap_page_flex(page_table pgtable, uint64 va, int free)
 {
     pte *target = walk(pgtable, va, NO_ALLOC);
     if (target == NULL || (*target & PTE_V) == 0) {
         PANIC_FN("unmap unmaped page");
     }
 
+    if (free == FREE) {
+        void *page = (void *)PTE_GET_PA(va);
+        kfree(page);
+    }
     *target = 0;
+}
+
+void unmap_page(page_table pgtable, uint64 va)
+{
+    unmap_page_flex(pgtable, va, NO_FREE);
+}
+
+void unmap_pages_free(page_table pgtable, uint64 va)
+{
+    unmap_page_flex(pgtable, va, FREE);
+}
+
+void unmap_n_pages_flex(page_table pgtable, uint64 va, int n, int free)
+{
+
+    for (int i = 0; i < n; i++) {
+        unmap_page_flex(pgtable, va, free);
+        va += PGSIZE;
+    }
 }
 
 void unmap_n_pages(page_table pgtable, uint64 va, int n)
 {
-    for (int i = 0; i < n; i++) {
-        unmap_page(pgtable, va);
-        va += PGSIZE;
-    }
+    unmap_n_pages_flex(pgtable, va, n, NO_FREE);
+}
+
+void unmap_n_pages_free(page_table pgtable, uint64 va, int n)
+{
+    unmap_n_pages_flex(pgtable, va, n, FREE);
 }
 
 void free_page_table_aux(page_table pgtable, int level)

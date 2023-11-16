@@ -1,7 +1,7 @@
 #ifndef BASIC_TYPES_H_
 #define BASIC_TYPES_H_
 
-#include <stddef.h>
+#define NULL ((void *)0)
 
 typedef char int8;
 typedef short int16;
@@ -14,5 +14,7 @@ typedef unsigned int uint32;
 typedef unsigned long uint64;
 
 typedef uint32 uint;
+
+typedef uint64 size_t;
 
 #endif
