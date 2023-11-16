@@ -93,7 +93,7 @@ void kprintf(const char *fmt, ...)
     }
 }
 
-void panic_2str(const char *s1, const char *s2)
+__attribute__((noreturn)) void panic_2str(const char *s1, const char *s2)
 {
     panicked = 1;
     kprintf("panic: %s%s\n", s1, s2);
@@ -101,4 +101,4 @@ void panic_2str(const char *s1, const char *s2)
     }
 }
 
-void panic(const char *s) { panic_2str(s, ""); }
+__attribute__((noreturn)) void panic(const char *s) { panic_2str(s, ""); }

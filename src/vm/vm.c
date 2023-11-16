@@ -110,6 +110,31 @@ void unmap_n_pages(page_table pgtable, uint64 va, int n)
     }
 }
 
+void free_page_table_aux(page_table pgtable, int level)
+{
+    pte *table = pgtable;
+    for (int i = 0; i < 512; i++) {
+        uint64 pte = table[i];
+        if ((pte & PTE_V) == 0) {
+            continue;
+        }
+
+        page_table cur_table = (page_table)PTE_GET_PA(pte);
+        if (level == 1) {
+            kfree(cur_table);
+        } else {
+            free_page_table_aux(cur_table, level - 1);
+        }
+    }
+
+    kfree(table);
+}
+
+void free_page_table(page_table pgtable)
+{
+    free_page_table_aux(pgtable, MAX_LEVEL);
+}
+
 void vmprint_aux(int depth, page_table pgtable, int max_depth,
                  int max_level_count)
 {

@@ -17,6 +17,7 @@ int map_n_pages(page_table pgtable, uint64 va, int n, uint64 pa,
                 uint64 attribute);
 void unmap_page(page_table pgtable, uint64 va);
 void unmap_n_pages(page_table pgtable, uint64 va, int n);
+void free_page_table(page_table pgtable);
 
 // db
 void vmprint_accurate(page_table pgtable, int max_depth, int max_level_count);
@@ -31,6 +32,11 @@ static inline void *get_clear_page()
 
     memset(pg, 0, PGSIZE);
     return pg;
+}
+
+static inline page_table get_pagetable(void)
+{
+    return (page_table)get_clear_page();
 }
 
 static inline int init_page_table(page_table *pgtable)

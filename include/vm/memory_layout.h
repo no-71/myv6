@@ -4,24 +4,44 @@
 #include "driver/uart.h"
 #include "riscv/clint.h"
 #include "riscv/plic.h"
+#include "riscv/vm_system.h"
 
 /**
- * physical memory layout:
- * 0x2000000  CLINT_BASE
- * 0xc000000  PLIC_BASE
- * 0x10000000 UART_BASE
- * 0x80000000 KERNEL_BASE
- *            etext (aligned to 0x1000)
- *            <kernel data>
- *            kernel_end
- *            <free memory>
- *            MEMORY_END
+ * kernel memory layout:
+ * 0x2000000            CLINT_BASE
+ * 0xc000000            PLIC_BASE
+ * 0x10000000           UART_BASE
+ * 0x80000000           KERNEL_BASE
+ *                      etext (aligned to 0x1000)
+ *                      <kernel data>
+ *                      kernel_end
+ *                      <free memory>
+ *                      MEMORY_END
+ *
+ *                      <hole>
+ *
+ * (MAX_VA+1)-PGSIZE    TRAMPOLINE_BASE
  */
-
 #define KERNEL_BASE 0x80000000L
 #define MEMORY_SIZE (128 * (1L << 20))
 #define MEMORY_END (KERNEL_BASE + MEMORY_SIZE)
-#define MAX_PA MEMORY_END
+#define TRAMPOLINE_BASE ((MAX_VA + 1) - PGSIZE)
+
+/**
+ * user memory layout
+ * 0x1000                   PROC_VA_START
+ *                          <elf things>
+ *
+ * TRAMPOLINE_BASE-PGSIZE   TRAP_FRAME_BASE
+ * (MAX_VA+1)-PGSIZE        TRAMPOLINE_BASE
+ */
+#define PROC_VA_START 0x1000
+#define USTACK_BASE (TRAPFRAME_BASE - PGSIZE)
+#define TRAPFRAME_BASE (TRAMPOLINE_BASE - PGSIZE)
+
+#define MAX_PA (MEMORY_END - 1)
+
+#define GET_TRAMPOLINE_FN_VA(FN) (TRAMPOLINE_BASE + ((uint64)FN) % PGSIZE)
 
 extern char etext[];
 

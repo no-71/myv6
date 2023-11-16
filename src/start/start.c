@@ -3,11 +3,11 @@
 #include "riscv/clint.h"
 #include "riscv/regs.h"
 #include "riscv/vm_system.h"
+#include "trap/time_trap_handler.h"
 
-extern void time_trap_vec(void);
 extern void main(void);
 
-__attribute__((aligned(16))) char kstack_for_scheduler[NCPUS][PGSIZE];
+__attribute__((aligned(16))) char kstack_for_scheduler[MAX_CPU_NUM][PGSIZE];
 uint64 mtime_setting[6];
 
 void set_m_csrs(void);
