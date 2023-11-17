@@ -24,38 +24,56 @@
 #define PF_W 0x2
 #define PF_R 0x3
 
-typedef uint32 Elf32_Addr;
+/* Type for a 16-bit quantity.  */
 typedef uint16 Elf32_Half;
-typedef uint32 Elf32_Off;
-typedef uint32 Elf32_Sword;
-typedef uint32 Elf32_Word;
+typedef uint16 Elf64_Half;
 
-struct Elf32_Ehdr {
+/* Types for signed and unsigned 32-bit quantities.  */
+typedef uint32 Elf32_Word;
+typedef int32 Elf32_Sword;
+typedef uint32 Elf64_Word;
+typedef int32 Elf64_Sword;
+
+/* Types for signed and unsigned 64-bit quantities.  */
+typedef uint64 Elf32_Xword;
+typedef int64 Elf32_Sxword;
+typedef uint64 Elf64_Xword;
+typedef int64 Elf64_Sxword;
+
+/* Type of addresses.  */
+typedef uint32 Elf32_Addr;
+typedef uint64 Elf64_Addr;
+
+/* Type of file offsets.  */
+typedef uint32 Elf32_Off;
+typedef uint64 Elf64_Off;
+
+struct Elf64_Ehdr {
     unsigned char e_ident[EI_NIDENT];
-    Elf32_Half e_type;
-    Elf32_Half e_machine;
-    Elf32_Word e_version;
-    Elf32_Addr e_entry;
-    Elf32_Off e_phoff;
-    Elf32_Off e_shoff;
-    Elf32_Word e_flags;
-    Elf32_Half e_ehsize;
-    Elf32_Half e_phentsize;
-    Elf32_Half e_phnum;
-    Elf32_Half e_shentsize;
-    Elf32_Half e_shnum;
-    Elf32_Half e_shstrndx;
+    Elf64_Half e_type;
+    Elf64_Half e_machine;
+    Elf64_Word e_version;
+    Elf64_Addr e_entry;
+    Elf64_Off e_phoff;
+    Elf64_Off e_shoff;
+    Elf64_Word e_flags;
+    Elf64_Half e_ehsize;
+    Elf64_Half e_phentsize;
+    Elf64_Half e_phnum;
+    Elf64_Half e_shentsize;
+    Elf64_Half e_shnum;
+    Elf64_Half e_shstrndx;
 };
 
-struct Elf32_Phdr {
-    Elf32_Word p_type;
-    Elf32_Off p_offset;
-    Elf32_Addr p_vaddr;
-    Elf32_Addr p_paddr;
-    Elf32_Word p_filesz;
-    Elf32_Word p_memsz;
-    Elf32_Word p_flags;
-    Elf32_Word p_align;
+struct Elf64_Phdr {
+    Elf64_Word p_type;
+    Elf64_Word p_flags;
+    Elf64_Off p_offset;
+    Elf64_Addr p_vaddr;
+    Elf64_Addr p_paddr;
+    Elf64_Xword p_filesz;
+    Elf64_Xword p_memsz;
+    Elf64_Xword p_align;
 };
 
 #endif

@@ -23,6 +23,10 @@ void unmap_pages_free(page_table pgtable, uint64 va);
 void unmap_n_pages(page_table pgtable, uint64 va, int n);
 void unmap_n_pages_free(page_table pgtable, uint64 va, int n);
 void free_page_table(page_table pgtable);
+int copy_in(uint64 uva, char *kva, uint64 size);
+int copy_out(uint64 uva, char *kva, uint64 size);
+int copy_in_str(uint64 uva, char *kva, uint64 size);
+int copy_out_str(uint64 uva, char *kva, uint64 size);
 
 // db
 void vmprint_accurate(page_table pgtable, int max_depth, int max_level_count);

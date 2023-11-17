@@ -59,8 +59,12 @@ struct trap_frame {
     // return to user space
     uint64 sepc;
 
+    // current cpu
+    uint64 cpu_id;
+
     // kernel setup
     uint64 kernel_trap_handler_ptr;
+    uint64 user_trap_hadnler_ptr;
     uint64 kstack;
     uint64 satp;
 };
@@ -83,6 +87,7 @@ struct process {
 };
 
 void init_process(void);
+void setup_init_proc(void);
 
 extern struct process proc_set[STATIC_PROC_NUM];
 

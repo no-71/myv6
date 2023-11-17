@@ -8,6 +8,7 @@
 #include "trap/user_trap_handler.h"
 #include "util/kprint.h"
 #include "vm/kalloc.h"
+#include "vm/kvm.h"
 #include "vm/memory_layout.h"
 #include "vm/vm.h"
 
@@ -50,6 +51,7 @@ void free_pid(int i)
 
 void user_proc_entry(void)
 {
+    my_proc()->proc_trap_frame->cpu_id = r_tp();
     pop_introff();
 
     user_trap_ret();
@@ -58,8 +60,12 @@ void user_proc_entry(void)
 int init_user_pagetable(struct process *proc, page_table pgtable)
 {
     void *trap_frame_page = kalloc();
+    if (trap_frame_page == NULL) {
+        return 1;
+    }
     void *ustack = kalloc();
-    if (trap_frame_page == NULL || ustack == NULL) {
+    if (ustack == NULL) {
+        kfree(trap_frame_page);
         return 1;
     }
 
@@ -67,7 +73,8 @@ int init_user_pagetable(struct process *proc, page_table pgtable)
                        ROUND_DOWN_PGSIZE(user_trap_entry), PTE_R | PTE_X);
     err |= map_page(pgtable, TRAPFRAME_BASE, (uint64)trap_frame_page,
                     PTE_R | PTE_W);
-    err |= map_page(pgtable, USTACK_BASE, (uint64)ustack, PTE_R | PTE_W);
+    err |=
+        map_page(pgtable, USTACK_BASE, (uint64)ustack, PTE_R | PTE_W | PTE_U);
     if (err) {
         kfree(trap_frame_page);
         kfree(ustack);
@@ -75,7 +82,6 @@ int init_user_pagetable(struct process *proc, page_table pgtable)
     }
 
     proc->ustack = (uint64)ustack;
-    proc->proc_pgtable = pgtable;
     proc->proc_trap_frame = trap_frame_page;
 
     return 0;
@@ -112,13 +118,19 @@ int init_user_process(struct process *find_proc)
     find_proc->killed = 0;
     find_proc->parent = NULL;
 
-    // fake process context
-    find_proc->proc_context.ra = (uint64)user_proc_entry;
-    find_proc->proc_context.sp = find_proc->kstack + PGSIZE;
-
+    // basic setup for trap frame
+    find_proc->proc_trap_frame->kernel_trap_handler_ptr = 0;
+    find_proc->proc_trap_frame->kstack = find_proc->kstack;
+    find_proc->proc_trap_frame->satp = MAKE_SATP((uint64)kernel_page_table);
+    find_proc->proc_trap_frame->user_trap_hadnler_ptr =
+        (uint64)user_trap_handler;
     // fake return to user sapce
     find_proc->proc_trap_frame->sepc = PROC_VA_START;
     find_proc->proc_trap_frame->sp = USTACK_BASE + PGSIZE;
+
+    // fake process context
+    find_proc->proc_context.ra = (uint64)user_proc_entry;
+    find_proc->proc_context.sp = find_proc->kstack + PGSIZE;
 
     return 0;
 
@@ -151,13 +163,13 @@ void setup_init_proc(void)
 {
     struct process *proc = alloc_process();
     if (proc == NULL) {
-        PANIC_FN("setup init proc fail");
+        PANIC_FN("fail to setup init process, process alloc error");
     }
 
     int err = load_process_elf(proc->proc_pgtable, init_code_binary,
                                init_code_binary_size);
     if (err) {
-        PANIC_FN("fail to setup init process");
+        PANIC_FN("fail to setup init process, elf load error");
     }
 
     proc->status = RUNABLE;

@@ -5,7 +5,8 @@
 #define PGSIZE (1L << PGSIZE_BITS)
 #define PGSIZE_MASK ((1L << PGSIZE_BITS) - 1L)
 
-#define MAX_VA ((1L << 38) - 1)
+#define VA_END (1L << 38)
+#define MAX_VA (VA_END - 1)
 
 #define MAX_LEVEL 2
 

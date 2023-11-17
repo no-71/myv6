@@ -1,7 +1,10 @@
 #include "io/console/console.h"
+#include "process/process.h"
+#include "scheduler/scheduler.h"
 #include "test/test_config.h"
 #include "test/vm/kalloc_test.h"
 #include "test/vm/kvm_test.h"
+#include "trap/kernel_trap.h"
 #include "util/kprint.h"
 #include "vm/kalloc.h"
 #include "vm/kvm.h"
@@ -22,8 +25,13 @@ void main(void)
     kvm_init_hart();
     kvm_test();
 
-    panic("panic test");
+    init_process();
+    setup_init_proc();
 
-    while (1) {
-    }
+    init_kernel_trap();
+
+    // start scheduler, running process
+    scheduler();
+
+    panic("panic test");
 }

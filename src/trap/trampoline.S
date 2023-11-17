@@ -51,21 +51,26 @@ user_trap_entry:
     csrr a0, sepc
     sd a0, 31*8(a1)
 
+    # restore tp
+    ld tp, 32*8(a1)
+
     # set up kernel_trap_handler
-    ld a0, 32*8(a1)
+    ld a0, 33*8(a1)
     csrw stvec, a0
 
+    # to call user_trap_handler
+    ld ra, 34*8(a1)
+
     # load kstack
-    ld sp, 33*8(a1)
+    ld sp, 35*8(a1)
     li a0, 4096
     add sp, sp, a0
 
     # turn into kernel page table
-    ld a0, 34*8(a1)
+    ld a0, 36*8(a1)
     csrw satp, a0
     sfence.vma zero, zero
-
-    call user_trap_handler
+    ret
 
 user_trap_ret_end:
     # call with user_trap_ret_end(proc_page_table)

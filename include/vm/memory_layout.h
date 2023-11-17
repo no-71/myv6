@@ -20,24 +20,25 @@
  *
  *                      <hole>
  *
- * (MAX_VA+1)-PGSIZE    TRAMPOLINE_BASE
+ * VA_END - PGSIZE      TRAMPOLINE_BASE
  */
 #define KERNEL_BASE 0x80000000L
 #define MEMORY_SIZE (128 * (1L << 20))
 #define MEMORY_END (KERNEL_BASE + MEMORY_SIZE)
-#define TRAMPOLINE_BASE ((MAX_VA + 1) - PGSIZE)
+#define TRAMPOLINE_BASE (VA_END - PGSIZE)
 
 /**
  * user memory layout
  * 0x1000                   PROC_VA_START
  *                          <elf things>
- *
- * TRAMPOLINE_BASE-PGSIZE   TRAP_FRAME_BASE
- * (MAX_VA+1)-PGSIZE        TRAMPOLINE_BASE
+ * VA_END - PGSIZE*3        USTACK_BASE
+ * VA_END - PGSIZE*2        TRAP_FRAME_BASE
+ * VA_END - PGSIZE          TRAMPOLINE_BASE
  */
 #define PROC_VA_START 0x1000
-#define USTACK_BASE (TRAPFRAME_BASE - PGSIZE)
-#define TRAPFRAME_BASE (TRAMPOLINE_BASE - PGSIZE)
+#define USTACK_BASE (VA_END - PGSIZE * 3)
+#define TRAPFRAME_BASE (VA_END - PGSIZE * 2)
+//      TRAMPOLINE_BASE
 
 #define MAX_PA (MEMORY_END - 1)
 

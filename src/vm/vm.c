@@ -170,6 +170,30 @@ void free_page_table(page_table pgtable)
     free_page_table_aux(pgtable, MAX_LEVEL);
 }
 
+int copy_in(uint64 uva, char *kva, uint64 size)
+{
+    ;
+    return 0;
+}
+
+int copy_out(uint64 uva, char *kva, uint64 size)
+{
+    ;
+    return 0;
+}
+
+int copy_in_str(uint64 uva, char *kva, uint64 size)
+{
+    ;
+    return 0;
+}
+
+int copy_out_str(uint64 uva, char *kva, uint64 size)
+{
+    ;
+    return 0;
+}
+
 void vmprint_aux(int depth, page_table pgtable, int max_depth,
                  int max_level_count)
 {
