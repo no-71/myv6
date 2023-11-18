@@ -1,5 +1,5 @@
 OUTPUT_ARCH("riscv")
-ENTRY(main)
+ENTRY(user_start)
 
 SECTIONS
 {
@@ -10,6 +10,7 @@ SECTIONS
   . = 0x1000;
 
   .text : {
+    *(the_user_start)
     *(.text .text.*)
     . = ALIGN(0x1000);
   }

@@ -19,11 +19,11 @@ void main(void)
     kprintf("\n");
 
     kalloc_init();
-    kalloc_test();
+    // kalloc_test();
 
     kvm_init();
     kvm_init_hart();
-    kvm_test();
+    // kvm_test();
 
     init_process();
     setup_init_proc();
@@ -33,5 +33,5 @@ void main(void)
     // start scheduler, running process
     scheduler();
 
-    panic("panic test");
+    panic("main try to exit");
 }

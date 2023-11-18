@@ -1,12 +1,16 @@
 #include "vm/vm.h"
 #include "riscv/vm_system.h"
+#include "util/arithmetic.h"
 #include "util/kprint.h"
 #include "vm/kalloc.h"
 #include "vm/memory_layout.h"
+#include <math.h>
 #include <stddef.h>
 
 enum { ALLOC, NO_ALLOC };
 enum { FREE, NO_FREE };
+enum { COPY_IN, COPY_OUT, COPY_IN_STR, COPY_OUT_STR };
+enum { COPY_SUCCESS, COPY_FAIL, COPY_FINISH };
 
 void *memset(void *m, int val, size_t len)
 {
@@ -34,7 +38,7 @@ void *memcpy(void *dest, void *src, size_t len)
 pte *walk(page_table pgtable, uint64 va, int alloc)
 {
     if (va > MAX_VA) {
-        PANIC_FN("try to walk with va that greater than MAX_VA");
+        return NULL;
     }
 
     int level = MAX_LEVEL;
@@ -68,10 +72,6 @@ pte *walk(page_table pgtable, uint64 va, int alloc)
 
 int map_page(page_table pgtable, uint64 va, uint64 pa, uint64 attribute)
 {
-    if (pa > MAX_PA) {
-        PANIC_FN("try to map page to pa that greater than MAX_PA");
-    }
-
     pte *target = walk(pgtable, va, ALLOC);
     if (target == NULL) {
         return 1;
@@ -170,28 +170,115 @@ void free_page_table(page_table pgtable)
     free_page_table_aux(pgtable, MAX_LEVEL);
 }
 
-int copy_in(uint64 uva, char *kva, uint64 size)
+int check_uva_attribute_valid(uint64 attribute)
 {
-    ;
+    if ((attribute & PTE_U) == 0)
+        return 1;
+    if ((attribute & PTE_R) == 0 && (attribute & PTE_X) == 0)
+        return 1;
     return 0;
 }
 
-int copy_out(uint64 uva, char *kva, uint64 size)
+int copy_str_in_page(char *mem_start, char *kva, uint64 copy_size, int meet_end,
+                     int copy_way)
 {
-    ;
+    for (int i = 0; i < copy_size; i++) {
+        char copy_char;
+        if (copy_way == COPY_IN_STR) {
+            copy_char = *mem_start;
+            *kva = copy_char;
+        } else {
+            copy_char = *kva;
+            *mem_start = copy_char;
+        }
+
+        if (copy_char == '\0') {
+            return COPY_FINISH;
+        }
+        mem_start++;
+        kva++;
+    }
+
+    return meet_end ? COPY_FAIL : COPY_SUCCESS;
+}
+
+int handle_copy_for_page_with_way(char *mem_start, char *kva, uint64 copy_size,
+                                  uint64 size, int copy_way)
+{
+    if (copy_way == COPY_IN) {
+        memcpy(kva, mem_start, copy_size);
+        return COPY_SUCCESS;
+    }
+    if (copy_way == COPY_OUT) {
+        memcpy(mem_start, kva, copy_size);
+        return COPY_SUCCESS;
+    }
+
+    int r = 0;
+    if (copy_way == COPY_IN_STR) {
+        r = copy_str_in_page(mem_start, kva, copy_size, size == copy_size,
+                             COPY_IN_STR);
+    } else {
+        r = copy_str_in_page(mem_start, kva, copy_size, size == copy_size,
+                             COPY_OUT_STR);
+    }
+    return r;
+}
+
+int copy_in_or_out_may_str(page_table upgtable, uint64 uva, char *kva,
+                           uint64 size, int copy_way)
+{
+    while (size > 0) {
+        pte *pte = walk(upgtable, uva, NO_ALLOC);
+        if (pte == NULL) {
+            return 1;
+        }
+        uint64 attribute = PTE_GET_ATTRIBUTE(*pte);
+        if (check_uva_attribute_valid(attribute)) {
+            return 1;
+        }
+
+        char *page = (char *)PTE_GET_PA(*pte);
+        char *mem_start = page + (uva % PGSIZE);
+        uint64 page_mem_size = PGSIZE - (uva % PGSIZE);
+        uint64 copy_size = MIN(page_mem_size, size);
+        int r = handle_copy_for_page_with_way(mem_start, kva, copy_size, size,
+                                              copy_way);
+        switch (r) {
+        case COPY_SUCCESS:
+            break;
+        case COPY_FAIL:
+            return 1;
+        case COPY_FINISH:
+            return 0;
+        }
+
+        kva += copy_size;
+        uva += copy_size;
+        size -= copy_size;
+    }
+
     return 0;
 }
 
-int copy_in_str(uint64 uva, char *kva, uint64 size)
+int copy_in(page_table upgtable, uint64 uva, char *kva, uint64 size)
 {
-    ;
-    return 0;
+    return copy_in_or_out_may_str(upgtable, uva, kva, size, COPY_IN);
 }
 
-int copy_out_str(uint64 uva, char *kva, uint64 size)
+int copy_out(page_table upgtable, uint64 uva, char *kva, uint64 size)
 {
-    ;
-    return 0;
+    return copy_in_or_out_may_str(upgtable, uva, kva, size, COPY_OUT);
+}
+
+int copy_in_str(page_table upgtable, uint64 uva, char *kva, uint64 size)
+{
+    return copy_in_or_out_may_str(upgtable, uva, kva, size, COPY_IN_STR);
+}
+
+int copy_out_str(page_table upgtable, uint64 uva, char *kva, uint64 size)
+{
+    return copy_in_or_out_may_str(upgtable, uva, kva, size, COPY_OUT_STR);
 }
 
 void vmprint_aux(int depth, page_table pgtable, int max_depth,

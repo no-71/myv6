@@ -65,10 +65,12 @@ user_asm_dirs := $(sort $(dir $(user_asm_files)))
 user_obj_files := $(subst .c,.o,$(user_c_files)) $(subst .S,.o,$(user_asm_files))
 user_dirs := $(sort $(user_c_dirs) $(user_asm_dirs))
 
-user_link_files := $(output_dir_head)/$(user_src_dir_head)/sys_call.o
 user_exec_files := $(addprefix $(output_dir_head)/,$(subst .c,,$(user_c_files)))
 user_output_files := $(addprefix $(output_dir_head)/,$(user_obj_files))
 user_output_dirs := $(addprefix $(output_dir_head)/,$(user_dirs))
+
+# link these when generate user code
+user_link_files := $(addprefix $(output_dir_head)/$(user_src_dir_head)/,sys_call.o user_entry.o)
 
 # elf to binary
 elf_to_binary := test/fake_fs/e2b

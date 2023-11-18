@@ -1,20 +1,35 @@
 #include "sys_calls.h"
 
-char s[] = "dear";
+char s[64] = "dear";
 
-int main(void)
+void test_mem_rw(void)
 {
-    trap_into_k();
-    for (int i = 0; i < 100; i++) {
-        ((volatile char *)s)[0] = 'b';
-        if (s[0] != 'b') {
+    char stack[64];
+    for (int i = 0; i < 64; i++) {
+        ((volatile char *)s)[i] = 'b';
+        ((volatile char *)stack)[i] = 'c';
+        if (s[i] != 'b' || stack[i] != 'c') {
             (void)*((volatile char *)0);
         }
     }
-    trap_into_k();
+}
+
+int main(void)
+{
+    puts("hello from user space\n");
+    puts("repeat hello...\n");
+
+    char *err_str = (char *)0x100;
+    int err = puts(err_str);
+    if (err == 0) {
+        puts("ERR: puts test fail\n");
+    }
+
+    printf("hello form printf\n");
+    printf("s: %p\n", s);
+
     while (1) {
         ((volatile char *)s)[0] = 'b';
     }
-
     return 1;
 }

@@ -1,7 +1,13 @@
 .text
-.global trap_into_k
 
-trap_into_k:
-    li a0, 0
+.global putc
+putc:
+    li a7, 0
+    ecall
+    ret
+
+.global puts
+puts:
+    li a7, 1
     ecall
     ret
