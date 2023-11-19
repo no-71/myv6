@@ -16,7 +16,7 @@ void test_mem_rw(void)
 
 int main(void)
 {
-    puts("hello from user space\n");
+    puts("user space say hello\n");
     puts("repeat hello...\n");
 
     char *err_str = (char *)0x100;

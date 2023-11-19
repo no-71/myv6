@@ -1,5 +1,6 @@
 #include "process/process.h"
 #include "binary_code/init_code_binary.h"
+#include "binary_code/simple_user_binary.h"
 #include "cpus.h"
 #include "process/process_loader.h"
 #include "riscv/vm_system.h"
@@ -27,16 +28,18 @@ void init_process(void)
 
 int alloc_pid(void)
 {
+    int pid = PID_ALLOC_ERR;
     push_introff();
     for (int i = 0; i < STATIC_PROC_NUM; i++) {
         if (pid_set[i] == 0) {
             pid_set[i] = 1;
-            return i;
+            pid = i;
+            break;
         }
     }
     pop_introff();
 
-    return PID_ALLOC_ERR;
+    return pid;
 }
 
 void free_pid(int i)
@@ -171,6 +174,17 @@ void setup_init_proc(void)
     if (err) {
         PANIC_FN("fail to setup init process, elf load error");
     }
-
     proc->status = RUNABLE;
+
+    struct process *proc2 = alloc_process();
+    if (proc2 == NULL) {
+        PANIC_FN("fail to setup init process, process alloc error");
+    }
+
+    err = load_process_elf(proc2->proc_pgtable, simple_user_binary,
+                           simple_user_binary_size);
+    if (err) {
+        PANIC_FN("fail to setup init process, elf load error");
+    }
+    proc2->status = RUNABLE;
 }

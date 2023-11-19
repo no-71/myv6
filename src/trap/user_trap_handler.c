@@ -6,6 +6,7 @@
 #include "riscv/trap_handle.h"
 #include "riscv/vm_system.h"
 #include "syscall/syscall.h"
+#include "trap/intr_handler.h"
 #include "trap/introff.h"
 #include "trap/trampoline.h"
 #include "util/kprint.h"
@@ -23,11 +24,11 @@ void user_trap_handler(void)
         proc->proc_trap_frame->sepc += 4;
         handle_syscall();
     } else if (scause & SCAUSE_INTERRPUT_MASK) {
-        tc++;
-        if (tc % 10 == 0) {
-            kprintf("catch intr\n");
+        int err = intr_handler(scause);
+        if (err) {
+            kprintf("unexpect intrrupt:\n scause: %p\n stval: %p\n", scause,
+                    r_stval());
         }
-        w_sip(0);
     } else {
         kprintf("unexpect exception from user:\n scause: %p\n stval: %p\n "
                 "spec: %p\n",

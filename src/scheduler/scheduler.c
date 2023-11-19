@@ -19,6 +19,7 @@ void scheduler(void)
                 continue;
             }
 
+            introff();
             push_introff();
             struct cpu *mycpu = my_cpu();
             mycpu->my_proc = proc;
