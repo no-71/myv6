@@ -6,12 +6,13 @@
 #include "trap/introff.h"
 #include "util/kprint.h"
 
-void yield(void)
+void switch_to_scheduler(void)
 {
-    push_introff();
-
     struct process *proc = my_proc();
     struct cpu *mycpu = my_cpu();
+    if (r_sstatus() & XSTATUS_SIE) {
+        PANIC_FN("sstatus(sie) != 0");
+    }
     if (mycpu->introff_n != 1) {
         PANIC_FN("introff_n != 1");
     }
@@ -19,27 +20,32 @@ void yield(void)
         PANIC_FN("origin_ie != 0");
     }
 
-    proc->status = RUNABLE;
-    kprintf("proc %d swtch\n", my_proc()->pid);
+    // kprintf("proc %d swtch\n", my_proc()->pid);
     swtch(&proc->proc_context, &mycpu->scheduler_context);
-    proc->proc_trap_frame->cpu_id = r_tp();
-    kprintf("proc %d come back\n", my_proc()->pid);
+    // kprintf("proc %d come back\n", my_proc()->pid);
+}
+
+void yield(uint64 status)
+{
+    push_introff();
+
+    my_proc()->status = status;
+    switch_to_scheduler();
 
     pop_introff();
 }
 
-int intr_handler(uint64 scause)
+void intr_handler(uint64 scause)
 {
     if (scause == SCAUSE_SSI) {
         w_sip(r_sip() & (~XIP_SSIP));
 
         if (my_proc() == NULL) {
-            return 0;
+            return;
         }
-        yield();
+        yield(RUNABLE);
     } else {
-        return 1;
+        kprintf("unexpect intrrupt:\n scause: %p\n stval: %p\n", scause,
+                r_stval());
     }
-
-    return 0;
 }

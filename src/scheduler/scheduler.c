@@ -22,11 +22,10 @@ void scheduler(void)
             introff();
             push_introff();
             struct cpu *mycpu = my_cpu();
-            mycpu->my_proc = proc;
 
+            mycpu->my_proc = proc;
             proc->status = RUNNING;
             swtch(&mycpu->scheduler_context, &proc->proc_context);
-
             mycpu->my_proc = NULL;
             pop_introff();
         }

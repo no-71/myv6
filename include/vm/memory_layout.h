@@ -31,16 +31,19 @@
  * user memory layout
  * 0x1000                   PROC_VA_START
  *                          <elf things>
+ * VA_END - PGSIZE*4        PROTECT_PAGE
  * VA_END - PGSIZE*3        USTACK_BASE
  * VA_END - PGSIZE*2        TRAP_FRAME_BASE
  * VA_END - PGSIZE          TRAMPOLINE_BASE
  */
 #define PROC_VA_START 0x1000
+#define PROC_VA_END (VA_END - PGSIZE * 4)
 #define USTACK_BASE (VA_END - PGSIZE * 3)
 #define TRAPFRAME_BASE (VA_END - PGSIZE * 2)
 //      TRAMPOLINE_BASE
 
 #define MAX_PA (MEMORY_END - 1)
+#define PA_END MEMORY_END
 
 #define GET_TRAMPOLINE_FN_VA(FN) (TRAMPOLINE_BASE + ((uint64)FN) % PGSIZE)
 

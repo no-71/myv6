@@ -63,7 +63,7 @@ struct trap_frame {
     uint64 cpu_id;
 
     // kernel setup
-    uint64 kernel_trap_handler_ptr;
+    uint64 kernel_trap_entry_ptr;
     uint64 user_trap_hadnler_ptr;
     uint64 kstack;
     uint64 satp;
@@ -71,14 +71,19 @@ struct trap_frame {
 
 enum { UNUSED, USED, RUNABLE, RUNNING, SLEEP, ZOMBIE };
 
-typedef int32 pid_t;
-
 struct process {
     pid_t pid;
     int status;
     int killed;
+    int xstatus;
+    void *chain;
     struct process *parent;
+
+    // private
     uint64 ustack;
+    uint64 mem_start;
+    uint64 mem_brk;
+    uint64 mem_end;
     page_table proc_pgtable;
 
     uint64 kstack;
@@ -88,6 +93,13 @@ struct process {
 
 void init_process(void);
 void setup_init_proc(void);
+uint64 fork(struct process *proc);
+__attribute__((noreturn)) uint64 exit(struct process *proc, uint64 xstatus);
+uint64 exec(struct process *proc, char *file, int argc, char *argv[],
+            char str_in_argv[]);
+uint64 wait(struct process *proc, uint64 int_uva);
+uint64 kill(pid_t pid);
+uint64 count_proc_num(void);
 
 extern struct process proc_set[STATIC_PROC_NUM];
 

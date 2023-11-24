@@ -73,7 +73,7 @@ user_trap_entry:
     ret
 
 user_trap_ret_end:
-    # call with user_trap_ret_end(proc_page_table)
+    # call with argument: user_trap_ret_end(proc_page_table)
     # a0 = prco_page_table
     csrw satp, a0
     sfence.vma zero, zero

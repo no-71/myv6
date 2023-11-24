@@ -9,6 +9,7 @@
 
 enum { ALLOC, NO_ALLOC };
 enum { FREE, NO_FREE };
+enum { PANIC, NO_PANIC };
 enum { COPY_IN, COPY_OUT, COPY_IN_STR, COPY_OUT_STR };
 enum { COPY_SUCCESS, COPY_FAIL, COPY_FINISH };
 
@@ -102,47 +103,57 @@ int map_n_pages(page_table pgtable, uint64 va, int n, uint64 pa,
     return 0;
 }
 
-void unmap_page_flex(page_table pgtable, uint64 va, int free)
+void unmap_page_flex(page_table pgtable, uint64 va, int free,
+                     int panic_when_unmap)
 {
     pte *target = walk(pgtable, va, NO_ALLOC);
     if (target == NULL || (*target & PTE_V) == 0) {
-        PANIC_FN("unmap unmaped page");
+        if (panic_when_unmap == PANIC) {
+            PANIC_FN("unmap unmaped page");
+        } else {
+            return;
+        }
     }
 
     if (free == FREE) {
-        void *page = (void *)PTE_GET_PA(va);
-        kfree(page);
+        kfree((void *)PTE_GET_PA(*target));
     }
     *target = 0;
 }
 
 void unmap_page(page_table pgtable, uint64 va)
 {
-    unmap_page_flex(pgtable, va, NO_FREE);
+    unmap_page_flex(pgtable, va, NO_FREE, PANIC);
 }
 
 void unmap_pages_free(page_table pgtable, uint64 va)
 {
-    unmap_page_flex(pgtable, va, FREE);
+    unmap_page_flex(pgtable, va, FREE, PANIC);
 }
 
-void unmap_n_pages_flex(page_table pgtable, uint64 va, int n, int free)
+void unmap_n_pages_flex(page_table pgtable, uint64 va, int n, int free,
+                        int panic_when_unmap)
 {
 
     for (int i = 0; i < n; i++) {
-        unmap_page_flex(pgtable, va, free);
+        unmap_page_flex(pgtable, va, free, panic_when_unmap);
         va += PGSIZE;
     }
 }
 
 void unmap_n_pages(page_table pgtable, uint64 va, int n)
 {
-    unmap_n_pages_flex(pgtable, va, n, NO_FREE);
+    unmap_n_pages_flex(pgtable, va, n, NO_FREE, PANIC);
 }
 
 void unmap_n_pages_free(page_table pgtable, uint64 va, int n)
 {
-    unmap_n_pages_flex(pgtable, va, n, FREE);
+    unmap_n_pages_flex(pgtable, va, n, FREE, PANIC);
+}
+
+void unmap_n_pages_free_hole(page_table pgtable, uint64 va, int n)
+{
+    unmap_n_pages_flex(pgtable, va, n, FREE, NO_PANIC);
 }
 
 void free_page_table_aux(page_table pgtable, int level)
@@ -168,6 +179,95 @@ void free_page_table_aux(page_table pgtable, int level)
 void free_page_table(page_table pgtable)
 {
     free_page_table_aux(pgtable, MAX_LEVEL);
+}
+
+page_table copy_page_table_aux(page_table pgtable, int level)
+{
+    pte *table = pgtable;
+    pte *copy_table = get_pagetable();
+    if (copy_table == NULL) {
+        return (page_table)-1;
+    }
+
+    int has_sub_page = 0;
+    for (int i = 0; i < 512; i++) {
+        uint64 pte = table[i];
+        if ((pte & PTE_V) == 0) {
+            continue;
+        }
+
+        has_sub_page = 1;
+        void *sub_table_or_page = (void *)PTE_GET_PA(pte);
+        uint64 attribute = PTE_GET_ATTRIBUTE(pte);
+        void *copy_page = NULL;
+        if (level == 0) {
+            void *page = kalloc();
+            if (page == NULL) {
+                free_page_table_aux(copy_table, 0);
+                return (page_table)-1;
+            }
+
+            memcpy(page, sub_table_or_page, PGSIZE);
+            copy_page = page;
+        } else {
+            page_table sub_table =
+                copy_page_table_aux(sub_table_or_page, level - 1);
+            if (sub_table == NULL) {
+                continue;
+            }
+            if (sub_table == (page_table)-1) {
+                free_page_table_aux(copy_table, level);
+                return (page_table)-1;
+            }
+            copy_page = sub_table;
+        }
+        copy_table[i] = MAKE_PTE(copy_page, attribute);
+    }
+
+    if (has_sub_page) {
+        return copy_table;
+    } else {
+        kfree(copy_table);
+        return NULL;
+    }
+}
+
+page_table copy_page_table(page_table pgtable)
+{
+
+    page_table ret = copy_page_table_aux(pgtable, MAX_LEVEL);
+    return (ret == NULL || ret == (page_table)-1) ? NULL : ret;
+}
+
+int merge_page_table_in_interval(page_table mapped_table, page_table pgtable,
+                                 uint64 start, uint64 end)
+{
+    uint64 cur_mem;
+    for (cur_mem = start; cur_mem < end; cur_mem += PGSIZE) {
+        pte *pte = walk(pgtable, cur_mem, NO_ALLOC);
+        if (pte == NULL) {
+            continue;
+        }
+
+        void *origin_page = (void *)PTE_GET_PA(*pte);
+        uint64 attribute = PTE_GET_ATTRIBUTE(*pte);
+        void *copy_page = kalloc();
+        if (copy_page == NULL) {
+            goto err_ret;
+        }
+        memcpy(copy_page, origin_page, PGSIZE);
+
+        int err = map_page(mapped_table, cur_mem, (uint64)copy_page, attribute);
+        if (err) {
+            goto err_ret;
+        }
+    }
+
+    return 0;
+
+err_ret:
+    unmap_n_pages_free_hole(mapped_table, start, (cur_mem - start) / PGSIZE);
+    return 1;
 }
 
 int check_uva_attribute_valid(uint64 attribute)
@@ -261,12 +361,12 @@ int copy_in_or_out_may_str(page_table upgtable, uint64 uva, char *kva,
     return 0;
 }
 
-int copy_in(page_table upgtable, uint64 uva, char *kva, uint64 size)
+int copy_in(page_table upgtable, uint64 uva, void *kva, uint64 size)
 {
     return copy_in_or_out_may_str(upgtable, uva, kva, size, COPY_IN);
 }
 
-int copy_out(page_table upgtable, uint64 uva, char *kva, uint64 size)
+int copy_out(page_table upgtable, uint64 uva, void *kva, uint64 size)
 {
     return copy_in_or_out_may_str(upgtable, uva, kva, size, COPY_OUT);
 }

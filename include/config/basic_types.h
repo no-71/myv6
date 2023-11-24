@@ -13,8 +13,12 @@ typedef unsigned short uint16;
 typedef unsigned int uint32;
 typedef unsigned long uint64;
 
+typedef unsigned char uchar;
 typedef uint32 uint;
 
 typedef uint64 size_t;
+typedef int64 intptr_t;
+typedef uint64 uintptr_t;
+typedef int32 pid_t;
 
 #endif

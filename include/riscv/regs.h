@@ -112,5 +112,6 @@ WRITE_CSR_FN(satp)
 
 // generic regs
 READ_REG_FN(tp)
+READ_REG_FN(sp)
 
 #endif

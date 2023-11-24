@@ -3,5 +3,4 @@
 
 user_start:
     call main
-spin:
-    j spin
+    call exit

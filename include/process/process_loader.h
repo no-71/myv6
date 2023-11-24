@@ -4,6 +4,7 @@
 #include "process/elf.h"
 #include "vm/vm.h"
 
-int load_process_elf(page_table pgtable, char *elf_file, Elf32_Word file_size);
+uint64 load_process_elf(page_table pgtable, char *elf_file,
+                        Elf32_Word file_size);
 
 #endif

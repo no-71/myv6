@@ -2,6 +2,8 @@
 #define INTR_HANDLER_H_
 
 #include "config/basic_types.h"
-int intr_handler(uint64 scause);
+void switch_to_scheduler(void);
+void yield(uint64 status);
+void intr_handler(uint64 scause);
 
 #endif

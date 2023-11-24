@@ -37,7 +37,7 @@
 #define PTE_GET_PA(PTE) (PTE_GET_PPN(PTE) << PGSIZE_BITS)
 
 #define MAKE_PTE(PA, ATTRIBUTE)                                                \
-    (((((PA) >> PGSIZE_BITS) << PTE_ATTRIBUTE_BITS) & PTE_PPN_MASK) |          \
+    (((((uint64)(PA) >> PGSIZE_BITS) << PTE_ATTRIBUTE_BITS) & PTE_PPN_MASK) |  \
      ((ATTRIBUTE)&PTE_ATTRIBUTE_MASK))
 
 #define SATP_MODE_SV39 8

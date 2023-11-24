@@ -4,6 +4,5 @@ symbol-file out/kernel
 file out/kernel
 b painc_2str
 target remote localhost:26000
-c
 # set disassemble-next-line auto
 # set riscv use-compressed-breakpoints yes

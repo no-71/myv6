@@ -22,9 +22,15 @@ void unmap_page(page_table pgtable, uint64 va);
 void unmap_pages_free(page_table pgtable, uint64 va);
 void unmap_n_pages(page_table pgtable, uint64 va, int n);
 void unmap_n_pages_free(page_table pgtable, uint64 va, int n);
+void unmap_n_pages_free_hole(page_table pgtable, uint64 va, int n);
+page_table copy_page_table(page_table pgtable);
+int merge_page_table_in_interval(page_table mapped_table, page_table pgtable,
+                                 uint64 start, uint64 end);
 void free_page_table(page_table pgtable);
-int copy_in(page_table upgtable, uint64 uva, char *kva, uint64 size);
-int copy_out(page_table upgtable, uint64 uva, char *kva, uint64 size);
+
+// copy between kernel and user
+int copy_in(page_table upgtable, uint64 uva, void *kva, uint64 size);
+int copy_out(page_table upgtable, uint64 uva, void *kva, uint64 size);
 int copy_in_str(page_table upgtable, uint64 uva, char *kva, uint64 size);
 int copy_out_str(page_table upgtable, uint64 uva, char *kva, uint64 size);
 

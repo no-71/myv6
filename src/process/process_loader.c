@@ -45,6 +45,9 @@ int check_segment(struct Elf64_Phdr *segment, Elf64_Word file_size)
     if (segment->p_vaddr % PGSIZE) {
         return 1;
     }
+    if (segment->p_vaddr + segment->p_memsz > USTACK_BASE) {
+        return 1;
+    }
     if (segment->p_offset + segment->p_filesz > file_size) {
         return 1;
     }
@@ -73,12 +76,19 @@ void *append_map_page(page_table pgtable, uint64 va_start, uint64 va,
 {
     void *page = kalloc();
     if (page == NULL) {
-        unmap_n_pages_free(pgtable, va_start, (va - va_start) / PGSIZE);
+        goto err_ret;
         return NULL;
     }
-    map_page(pgtable, va, (uint64)page, attribute);
+    int err = map_page(pgtable, va, (uint64)page, attribute);
+    if (err) {
+        goto err_ret;
+    }
 
     return page;
+
+err_ret:
+    unmap_n_pages_free(pgtable, va_start, (va - va_start) / PGSIZE);
+    return NULL;
 }
 
 int map_segment_for_segment(page_table pgtable, struct Elf64_Phdr *segment,
@@ -131,7 +141,8 @@ int map_segment_for_segment(page_table pgtable, struct Elf64_Phdr *segment,
     return 0;
 }
 
-int load_process_elf(page_table pgtable, char *elf_file, Elf64_Word file_size)
+uint64 load_process_elf(page_table pgtable, char *elf_file,
+                        Elf64_Word file_size)
 {
     struct Elf64_Ehdr *elf_header = (struct Elf64_Ehdr *)elf_file;
 
@@ -143,6 +154,7 @@ int load_process_elf(page_table pgtable, char *elf_file, Elf64_Word file_size)
     char *prog_header = elf_file + elf_header->e_phoff;
     Elf64_Half ph_ent_sz = elf_header->e_phentsize;
     Elf64_Half ph_num = elf_header->e_phnum;
+    uint64 mem_end = 0;
 
     for (int i = 0; i < ph_num; i++) {
         struct Elf64_Phdr *segment =
@@ -153,14 +165,16 @@ int load_process_elf(page_table pgtable, char *elf_file, Elf64_Word file_size)
 
         err = check_segment(segment, file_size);
         if (err) {
-            return 1;
+            return -1;
         }
 
         err = map_segment_for_segment(pgtable, segment, elf_file);
         if (err) {
-            return 1;
+            return -1;
         }
+
+        mem_end = segment->p_vaddr + segment->p_memsz;
     }
 
-    return 0;
+    return ROUND_UP_PGSIZE(mem_end);
 }
