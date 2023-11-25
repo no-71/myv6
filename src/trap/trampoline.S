@@ -17,7 +17,7 @@ user_trap_entry:
     sd x7, 6*8(a0)
     sd x8, 7*8(a0)
     sd x9, 8*8(a0)
-    # sd x10, 9*8(a0)
+    # sd x10, 9*8(a0) # don't store a0 here
     sd x11, 10*8(a0)
     sd x12, 11*8(a0)
     sd x13, 12*8(a0)

@@ -184,21 +184,6 @@ void setup_init_proc(void)
     proc->mem_start = mem_end;
     proc->mem_brk = mem_end;
     proc->mem_end = mem_end;
-
-    // 2
-    // struct process *proc2 = alloc_process();
-    // if (proc2 == NULL) {
-    //     PANIC_FN("fail to setup usertest process, process alloc error");
-    // }
-    //
-    // mem_end = load_process_elf(proc2->proc_pgtable, usertest_binary,
-    //                            usertest_binary_size);
-    // if (mem_end == -1) {
-    //     PANIC_FN("fail to setup init process, elf load error");
-    // }
-    // proc2->parent = proc;
-    // proc2->status = RUNABLE;
-    // proc2->mem_end = mem_end;
 }
 
 static void free_user_memory(page_table pgtable, uint64 mem_end)

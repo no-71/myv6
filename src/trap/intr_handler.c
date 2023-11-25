@@ -16,13 +16,13 @@ void switch_to_scheduler(void)
     if (mycpu->introff_n != 1) {
         PANIC_FN("introff_n != 1");
     }
-    if (mycpu->origin_ie != 0) {
-        PANIC_FN("origin_ie != 0");
-    }
 
+    uint64 origin_ie = mycpu->origin_ie;
+    mycpu->origin_ie = 0;
     // kprintf("proc %d swtch\n", my_proc()->pid);
     swtch(&proc->proc_context, &mycpu->scheduler_context);
     // kprintf("proc %d come back\n", my_proc()->pid);
+    my_cpu()->origin_ie = origin_ie;
 }
 
 void yield(uint64 status)

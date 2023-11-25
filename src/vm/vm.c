@@ -126,7 +126,7 @@ void unmap_page(page_table pgtable, uint64 va)
     unmap_page_flex(pgtable, va, NO_FREE, PANIC);
 }
 
-void unmap_pages_free(page_table pgtable, uint64 va)
+void unmap_page_free(page_table pgtable, uint64 va)
 {
     unmap_page_flex(pgtable, va, FREE, PANIC);
 }

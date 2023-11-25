@@ -19,6 +19,7 @@ void user_trap_handler(void)
 
     uint64 scause = r_scause();
     if (scause == SCAUSE_ECALL_FROM_U) {
+        intron();
         proc->proc_trap_frame->sepc += 4;
         handle_syscall(proc);
     } else if (scause & SCAUSE_INTERRPUT_MASK) {

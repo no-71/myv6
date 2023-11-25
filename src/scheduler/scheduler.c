@@ -9,9 +9,7 @@
 void scheduler(void)
 {
     while (1) {
-        if (r_sstatus() & XSTATUS_SIE) {
-            PANIC_FN("SIE = 1 in scheduler");
-        }
+        intron();
 
         for (int i = 0; i < STATIC_PROC_NUM; i++) {
             struct process *proc = &proc_set[i];
@@ -28,6 +26,7 @@ void scheduler(void)
             swtch(&mycpu->scheduler_context, &proc->proc_context);
             mycpu->my_proc = NULL;
             pop_introff();
+            intron();
         }
     }
 }

@@ -19,7 +19,7 @@ int map_n_pages(page_table pgtable, uint64 va, int n, uint64 pa,
                 uint64 attribute);
 
 void unmap_page(page_table pgtable, uint64 va);
-void unmap_pages_free(page_table pgtable, uint64 va);
+void unmap_page_free(page_table pgtable, uint64 va);
 void unmap_n_pages(page_table pgtable, uint64 va, int n);
 void unmap_n_pages_free(page_table pgtable, uint64 va, int n);
 void unmap_n_pages_free_hole(page_table pgtable, uint64 va, int n);
