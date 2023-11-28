@@ -1,21 +1,28 @@
 #include "io/console/console.h"
 #include "driver/uart.h"
+#include "lock/spin_lock.h"
 #include "trap/introff.h"
 
-void console_init() { uartinit(); }
+struct spin_lock console_lock;
+
+void console_init()
+{
+    init_spin_lock(&console_lock);
+    uartinit();
+}
 
 void console_kputc(char c)
 {
-    push_introff();
+    acquire_spin_lock(&console_lock);
     uart_polling_write(c);
-    pop_introff();
+    release_spin_lock(&console_lock);
 }
 
 void console_kwrite(const char *s, int len)
 {
-    push_introff();
+    acquire_spin_lock(&console_lock);
     while (s < s + len) {
         uart_polling_write(*s++);
     }
-    pop_introff();
+    release_spin_lock(&console_lock);
 }

@@ -13,7 +13,7 @@ uint64 get_arg_n(struct trap_frame *tf, int i) { return *(&tf->a0 + i); }
 
 uint64 syscall_putc(struct process *proc)
 {
-    console_kputc(my_proc()->proc_trap_frame->a0);
+    console_kputc(proc->proc_trap_frame->a0);
     return 0;
 }
 

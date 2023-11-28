@@ -1,4 +1,5 @@
 #include "driver/uart.h"
+#include "lock/spin_lock.h"
 
 void uartinit(void)
 {

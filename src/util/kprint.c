@@ -2,10 +2,16 @@
 #include "config/basic_types.h"
 #include "cpus.h"
 #include "io/console/console.h"
+#include "lock/spin_lock.h"
+#include "util/string.h"
 
 #include <stdarg.h>
 
+struct spin_lock kprintf_lock;
+
 static char digits[] = "0123456789abcdef";
+
+void kprintf_init(void) { init_spin_lock(&kprintf_lock); }
 
 static void printint(int xx, int base, int sign)
 {
@@ -54,6 +60,8 @@ void kprintf(const char *fmt, ...)
         panic("try to kprint(null)");
     }
 
+    acquire_spin_lock(&kprintf_lock);
+
     va_start(ap, fmt);
     for (i = 0; (c = fmt[i] & 0xff) != 0; i++) {
         if (c != '%') {
@@ -91,6 +99,8 @@ void kprintf(const char *fmt, ...)
             break;
         }
     }
+
+    release_spin_lock(&kprintf_lock);
 }
 
 __attribute__((noreturn)) void panic_2str(const char *s1, const char *s2)

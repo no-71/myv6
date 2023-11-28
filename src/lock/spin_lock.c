@@ -25,7 +25,7 @@ void acquire_spin_lock(struct spin_lock *lock)
 {
     check_not_hold(lock);
 
-    // push_introff();
+    push_introff();
     while (__sync_lock_test_and_set(&lock->locked, 1)) {
     }
     __sync_synchronize();
@@ -42,5 +42,5 @@ void release_spin_lock(struct spin_lock *lock)
     __sync_synchronize();
     __sync_lock_release(&lock->locked);
     // lock release
-    // pop_introff();
+    pop_introff();
 }

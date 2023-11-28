@@ -5,6 +5,7 @@
 #include "config/basic_types.h"
 #include "process/process.h"
 #include "riscv/regs.h"
+#include "util/kprint.h"
 
 struct cpu {
     struct process *my_proc;
@@ -20,7 +21,14 @@ extern struct cpu cpus[MAX_CPU_NUM];
 
 static inline int64 cpu_id(void) { return r_tp(); }
 
-static inline struct cpu *my_cpu(void) { return &cpus[cpu_id()]; }
+static inline struct cpu *my_cpu(void)
+{
+    if (r_sstatus() & XSTATUS_SIE) {
+        while (1) {
+        }
+    }
+    return &cpus[cpu_id()];
+}
 
 static inline struct process *my_proc(void) { return my_cpu()->my_proc; }
 

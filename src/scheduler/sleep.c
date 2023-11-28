@@ -1,33 +1,45 @@
 #include "scheduler/sleep.h"
 #include "cpus.h"
+#include "lock/spin_lock.h"
 #include "process/process.h"
 #include "trap/intr_handler.h"
 #include "trap/introff.h"
 #include "util/kprint.h"
 
 // call with push_introff() called
-void sleep(void *chain)
+void sleep(struct spin_lock *lock, void *chain)
 {
     struct process *proc = my_proc();
     if (proc->chain != NULL) {
         PANIC_FN("sleep when sleeping");
     }
 
+    if (lock != &proc->lock) {
+        acquire_spin_lock(&proc->lock);
+    }
     proc->status = SLEEP;
     proc->chain = chain;
+    if (lock != &proc->lock) {
+        release_spin_lock(lock);
+    }
+
     switch_to_scheduler();
-    proc->chain = NULL;
+
+    if (lock != &proc->lock) {
+        release_spin_lock(&proc->lock);
+        acquire_spin_lock(lock);
+    }
 }
 
 void wake_up(void *chain)
 {
-    push_introff();
     for (int i = 0; i < STATIC_PROC_NUM; i++) {
         struct process *proc = &proc_set[i];
+        acquire_spin_lock(&proc->lock);
         if (proc->status == SLEEP && proc->chain == chain) {
             proc->status = RUNNING;
             proc->chain = NULL;
         }
+        release_spin_lock(&proc->lock);
     }
-    pop_introff();
 }

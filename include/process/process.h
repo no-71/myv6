@@ -2,6 +2,7 @@
 #define PROCESS_H_
 
 #include "config/basic_types.h"
+#include "lock/spin_lock.h"
 #include "vm/vm.h"
 
 #define STATIC_PROC_NUM 32
@@ -78,6 +79,7 @@ struct process {
     int xstatus;
     void *chain;
     struct process *parent;
+    struct spin_lock lock;
 
     // private
     uint64 ustack;

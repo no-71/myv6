@@ -1,6 +1,7 @@
 #include "process/process.h"
 #include "binary_code/binary_codes.h"
 #include "cpus.h"
+#include "lock/spin_lock.h"
 #include "process/process_loader.h"
 #include "riscv/vm_system.h"
 #include "scheduler/sleep.h"
@@ -21,19 +22,23 @@
 struct process proc_set[STATIC_PROC_NUM];
 
 char pid_set[STATIC_PROC_NUM];
+struct spin_lock pid_lock;
 
 void init_process(void)
 {
+    init_spin_lock(&pid_lock);
+
     for (int i = 0; i < STATIC_PROC_NUM; i++) {
         proc_set[i].pid = -1;
         proc_set[i].status = UNUSED;
+        init_spin_lock(&proc_set[i].lock);
     }
 }
 
 static int alloc_pid(void)
 {
     int pid = PID_ALLOC_ERR;
-    push_introff();
+    acquire_spin_lock(&pid_lock);
     for (int i = 0; i < STATIC_PROC_NUM; i++) {
         if (pid_set[i] == 0) {
             pid_set[i] = 1;
@@ -41,24 +46,24 @@ static int alloc_pid(void)
             break;
         }
     }
-    pop_introff();
+    release_spin_lock(&pid_lock);
 
     return pid;
 }
 
 static void free_pid(int i)
 {
-    push_introff();
+    acquire_spin_lock(&pid_lock);
     if (pid_set[i] == 0) {
         PANIC_FN("try to free unused pid");
     }
     pid_set[i] = 0;
-    pop_introff();
+    release_spin_lock(&pid_lock);
 }
 
 void user_proc_entry(void)
 {
-    pop_introff();
+    release_spin_lock(&my_proc()->lock);
 
     user_trap_ret();
 }
@@ -152,20 +157,23 @@ err_ret:
 
 static struct process *alloc_process(void)
 {
-    push_introff();
-    struct process *find_proc = NULL;
     for (int i = 0; i < STATIC_PROC_NUM; i++) {
-        if (proc_set[i].status != UNUSED) {
+        struct process *proc = &proc_set[i];
+
+        acquire_spin_lock(&proc->lock);
+        if (proc->status != UNUSED) {
+            release_spin_lock(&proc->lock);
             continue;
         }
 
-        int err = init_user_process(&proc_set[i]);
-        find_proc = err ? NULL : &proc_set[i];
-        break;
+        proc->status = USED;
+        release_spin_lock(&proc->lock);
+
+        int err = init_user_process(proc);
+        return err ? NULL : proc;
     }
 
-    pop_introff();
-    return find_proc;
+    return NULL;
 }
 
 void setup_init_proc(void)
@@ -197,10 +205,9 @@ static void free_process_user_memory(struct process *proc)
     free_user_memory(proc->proc_pgtable, proc->mem_end);
 }
 
+// call with proc lock
 static void free_process(struct process *proc)
 {
-    push_introff();
-
     free_pid(proc->pid);
     free_process_user_memory(proc);
     kfree((void *)proc->ustack);
@@ -215,8 +222,6 @@ static void free_process(struct process *proc)
     proc->xstatus = 0;
     proc->chain = NULL;
     proc->parent = NULL;
-
-    pop_introff();
 }
 
 uint64 fork(struct process *proc)
@@ -231,7 +236,9 @@ uint64 fork(struct process *proc)
                                            proc->proc_pgtable, PROC_VA_START,
                                            proc->mem_end);
     if (err) {
+        acquire_spin_lock(&fork_proc->lock);
         free_process(fork_proc);
+        release_spin_lock(&fork_proc->lock);
         return -1;
     }
     // copy user stack
@@ -249,11 +256,13 @@ uint64 fork(struct process *proc)
     fork_proc->mem_start = proc->mem_start;
     fork_proc->mem_brk = proc->mem_brk;
     fork_proc->mem_end = proc->mem_end;
-    push_introff();
-    fork_proc->status = RUNABLE;
-    pop_introff();
 
-    return fork_proc->pid;
+    pid_t pid = fork_proc->pid;
+    acquire_spin_lock(&proc->lock);
+    fork_proc->status = RUNABLE;
+    release_spin_lock(&proc->lock);
+
+    return pid;
 }
 
 struct elf_in_kernel {
@@ -368,26 +377,24 @@ int load_new_process_for_exec(struct process *proc, struct elf_in_kernel *elf,
 uint64 exec(struct process *proc, char *file, int argc, char *argv[],
             char str_in_argv[])
 {
-    push_introff();
-
     // copy argv to memory
     void *argv_page = NULL;
     if (argc) {
         argv_page = copy_argv_to_page(argc, argv, str_in_argv);
         if (argv_page == NULL) {
-            return pop_introff_return_val(-1);
+            return -1;
         }
     }
 
     // load new proc
     struct elf_in_kernel *elf = get_elf_in_kernel(file);
     if (elf == NULL) {
-        return pop_introff_return_val(-1);
+        return -1;
     }
 
     int err = load_new_process_for_exec(proc, elf, argv_page);
     if (err) {
-        return pop_introff_return_val(-1);
+        return -1;
     }
 
     // set argc, argv and regs
@@ -397,15 +404,17 @@ uint64 exec(struct process *proc, char *file, int argc, char *argv[],
     proc->proc_trap_frame->sp = USTACK_BASE + PGSIZE;
     proc->proc_trap_frame->sepc = PROC_VA_START;
 
-    pop_introff();
     return 0;
 }
 
 static void reparent_children(struct process *parent)
 {
     for (int i = 0; i < STATIC_PROC_NUM; i++) {
-        if (proc_set[i].parent == parent) {
-            proc_set[i].parent = &proc_set[0];
+        struct process *proc = &proc_set[i];
+        if (proc->parent == parent) {
+            acquire_spin_lock(&proc->lock);
+            proc->parent = &proc_set[0];
+            release_spin_lock(&proc->lock);
         }
     }
 }
@@ -420,22 +429,47 @@ static void wake_up_parent(struct process *parent)
 
 __attribute__((noreturn)) uint64 exit(struct process *proc, uint64 xstatus)
 {
-    push_introff();
-
     if (proc->pid == 0) {
         PANIC_FN("init proc exit");
+    }
+
+    // reparent
+    acquire_spin_lock(&proc_set[0].lock);
+    acquire_spin_lock(&proc->lock);
+
+    reparent_children(proc);
+    wake_up_parent(&proc_set[0]);
+    struct process *parent = proc->parent;
+
+    release_spin_lock(&proc_set[0].lock);
+    release_spin_lock(&proc->lock);
+
+    // ZOMBIE current proc
+    acquire_spin_lock(&parent->lock);
+    acquire_spin_lock(&proc->lock);
+
+    if (proc->parent == parent) {
+        wake_up_parent(proc->parent);
+        release_spin_lock(&parent->lock);
+    } else {
+        if (proc->parent != &proc_set[0]) {
+            PANIC_FN("reparent proc to other proc(not proc 0)");
+        }
+
+        release_spin_lock(&parent->lock);
+        release_spin_lock(&proc->lock);
+
+        acquire_spin_lock(&proc_set[0].lock);
+        acquire_spin_lock(&proc->lock);
+        wake_up_parent(&proc_set[0]);
+        release_spin_lock(&proc_set[0].lock);
     }
 
     proc->status = ZOMBIE;
     proc->xstatus = xstatus;
     proc->chain = NULL;
 
-    reparent_children(proc);
-    wake_up_parent(&proc_set[0]);
-
-    wake_up_parent(proc->parent);
-
-    // push_introff() called once, proc->status has been setted
+    // proc->status has been setted
     // swtch to scheduler
     switch_to_scheduler();
 
@@ -444,6 +478,7 @@ __attribute__((noreturn)) uint64 exit(struct process *proc, uint64 xstatus)
     PANIC_FN("ZOMBIE proc returned");
 }
 
+// call with proc lock
 static int handle_exit_child(struct process *proc, uint64 int_uva, pid_t *pid)
 {
     *pid = -1;
@@ -455,16 +490,24 @@ static int handle_exit_child(struct process *proc, uint64 int_uva, pid_t *pid)
         }
 
         no_child_err = 0;
+
+        acquire_spin_lock(&other_proc->lock);
         if (other_proc->status != ZOMBIE) {
+            release_spin_lock(&other_proc->lock);
             continue;
         }
 
         *pid = other_proc->pid;
         if ((char *)int_uva != NULL) {
-            copy_out(proc->proc_pgtable, int_uva, &other_proc->xstatus,
-                     sizeof(int));
+            int err = copy_out(proc->proc_pgtable, int_uva,
+                               &other_proc->xstatus, sizeof(int));
+            if (err) {
+                release_spin_lock(&other_proc->lock);
+                return 1;
+            }
         }
         free_process(other_proc);
+        release_spin_lock(&other_proc->lock);
         return 0;
     }
 
@@ -473,61 +516,66 @@ static int handle_exit_child(struct process *proc, uint64 int_uva, pid_t *pid)
 
 uint64 wait(struct process *proc, uint64 int_uva)
 {
-    push_introff();
+    acquire_spin_lock(&proc->lock);
 
     pid_t pid;
-    int no_child_err = handle_exit_child(proc, int_uva, &pid);
-    if (no_child_err) {
-        return pop_introff_return_val(-1);
+    int err = handle_exit_child(proc, int_uva, &pid);
+    if (err) {
+        release_spin_lock(&proc->lock);
+        return -1;
     }
     if (pid != -1) {
-        return pop_introff_return_val(pid);
+        release_spin_lock(&proc->lock);
+        return pid;
     }
 
     while (1) {
-        sleep(proc);
+        sleep(&proc->lock, NULL);
 
-        no_child_err = handle_exit_child(proc, int_uva, &pid);
-        if (no_child_err) {
+        err = handle_exit_child(proc, int_uva, &pid);
+        if (err) {
             PANIC_FN("wake up parent without any child");
         }
         if (pid == -1) {
             continue;
         }
-        return pop_introff_return_val(pid);
+        release_spin_lock(&proc->lock);
+        return pid;
     }
 }
 
 uint64 kill(pid_t pid)
 {
-    push_introff();
-
     struct process *target = NULL;
     for (int i = 0; i < STATIC_PROC_NUM; i++) {
-        if (proc_set[i].pid == pid) {
-            target = &proc_set[i];
-            break;
+        acquire_spin_lock(&proc_set[i].lock);
+        if (proc_set[i].pid != pid) {
+            release_spin_lock(&proc_set[i].lock);
+            continue;
         }
+        target = &proc_set[i];
+        break;
     }
     if (target == NULL) {
-        return pop_introff_return_val(-1);
+        return -1;
     }
 
     target->killed = 1;
+    release_spin_lock(&target->lock);
 
-    pop_introff();
     return 0;
 }
 
 uint64 count_proc_num(void)
 {
-    push_introff();
-    int n = 0;
-    for (int i = 0; i < STATIC_PROC_NUM; i++) {
-        if (proc_set[i].status != UNUSED) {
-            n++;
-        }
-    }
-    pop_introff();
-    return n;
+    // push_introff();
+    // int n = 0;
+    // for (int i = 0; i < STATIC_PROC_NUM; i++) {
+    //     if (proc_set[i].status != UNUSED) {
+    //         n++;
+    //     }
+    // }
+    // pop_introff();
+    // return n;
+    return 0;
 }

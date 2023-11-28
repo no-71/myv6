@@ -573,14 +573,23 @@ int main(int argc, char *argv[])
         void (*f)(char *);
         char *s;
     } tests[] = {
-        { exitwait, "exitwait" },       { reparent, "reparent" },
-        { twochildren, "twochildren" }, { forkfork, "forkfork" },
-        { reparent2, "reparent2" },     { mem, "mem" },
-        { forktest, "forktest" },       { sbrkbasic, "sbrkbasic" },
-        { sbrkmuch, "sbrkmuch" },       { kernmem, "kernmem" },
-        { bsstest, "bsstest" },         { stacktest, "stacktest" },
-        { sbrkbugs, "sbrkbugs" },       { badarg, "badarg" },
-        { execout, "execout" },         { 0, 0 },
+        { exitwait, "exitwait" },
+        { reparent, "reparent" },
+        { twochildren, "twochildren" },
+        { forkfork, "forkfork" },
+        { reparent2, "reparent2" },
+        { mem, "mem" },
+        { forktest, "forktest" },
+        { sbrkbasic, "sbrkbasic" },
+        { sbrkmuch, "sbrkmuch" },
+        { kernmem, "kernmem" },
+        { bsstest, "bsstest" },
+        { stacktest, "stacktest" },
+        { sbrkbugs, "sbrkbugs" },
+        { badarg, "badarg" },
+        { execout, "execout" },
+        { 0, 0 },
+        { 0, 0 },
     };
 
     if (continuous) {

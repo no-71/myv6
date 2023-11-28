@@ -2,7 +2,7 @@
 
 .global kernel_trap_entry
 kernel_trap_entry:
-    addi sp, sp, -31*8
+    addi sp, sp, -32*8
     sd x1, 0*8(sp)
     # sd x2, 1*8(sp) # don't store sp here
     sd x3, 2*8(sp)
@@ -72,6 +72,6 @@ kernel_trap_ret_end:
     ld x29, 28*8(sp)
     ld x30, 29*8(sp)
     ld x31, 30*8(sp)
-    addi sp, sp, 31*8
+    addi sp, sp, 32*8
 
     sret

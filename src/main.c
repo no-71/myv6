@@ -1,5 +1,4 @@
 #include "io/console/console.h"
-#include "lock/big_kernel_lock.h"
 #include "lock/spin_lock.h"
 #include "process/process.h"
 #include "riscv/regs.h"
@@ -16,6 +15,7 @@ void main(void)
     if (r_tp() == 0) {
         console_init();
 
+        kprintf_init();
         kprintf("tinyos starts booting\n");
         kprintf("cpu %d start\n", r_tp());
 
@@ -28,15 +28,12 @@ void main(void)
 
         init_kernel_trap_hart();
 
-        init_spin_lock(&big_kernel_lock);
-        acquire_spin_lock(&big_kernel_lock);
         __sync_synchronize();
         kernel_init_finish = 1;
     } else {
         while (kernel_init_finish == 0) {
         }
         __sync_synchronize();
-        acquire_spin_lock(&big_kernel_lock);
 
         kprintf("cpu %d start\n", r_tp());
 

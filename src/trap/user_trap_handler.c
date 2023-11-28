@@ -1,7 +1,6 @@
 #include "trap/user_trap_handler.h"
 #include "config/basic_types.h"
 #include "cpus.h"
-#include "lock/big_kernel_lock.h"
 #include "lock/spin_lock.h"
 #include "process/process.h"
 #include "riscv/regs.h"
@@ -17,8 +16,6 @@
 
 void user_trap_handler(void)
 {
-    acquire_spin_lock(&big_kernel_lock);
-
     struct process *proc = my_proc();
 
     uint64 scause = r_scause();
@@ -45,8 +42,6 @@ void user_trap_handler(void)
 void user_trap_ret(void)
 {
     introff();
-
-    release_spin_lock(&big_kernel_lock);
 
     struct process *proc = my_proc();
 
