@@ -6,7 +6,7 @@ kernel_trap_entry:
     sd x1, 0*8(sp)
     # sd x2, 1*8(sp) # don't store sp here
     sd x3, 2*8(sp)
-    sd x4, 3*8(sp)
+    # sd x4, 3*8(sp)
     sd x5, 4*8(sp)
     sd x6, 5*8(sp)
     sd x7, 6*8(sp)
@@ -44,7 +44,7 @@ kernel_trap_ret_end:
     ld x1, 0*8(sp)
     # ld x2, 1*8(sp) # don't restore sp here
     ld x3, 2*8(sp)
-    ld x4, 3*8(sp)
+    # ld x4, 3*8(sp) # never restore tp
     ld x5, 4*8(sp)
     ld x6, 5*8(sp)
     ld x7, 6*8(sp)

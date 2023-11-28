@@ -5,7 +5,7 @@
 # basic config
 toolprefix = riscv64-linux-gnu-
 ifndef cpus
-    cpus = 1
+    cpus = 2
 endif
 
 # compile

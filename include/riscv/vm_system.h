@@ -1,6 +1,7 @@
 #ifndef VM_SYSTEM_H_
 #define VM_SYSTEM_H_
 
+#include "config/basic_types.h"
 #define PGSIZE_BITS 12
 #define PGSIZE (1L << PGSIZE_BITS)
 #define PGSIZE_MASK ((1L << PGSIZE_BITS) - 1L)
@@ -51,6 +52,15 @@ static inline void sfence_vma_all()
 {
     // flush all TLB entries.
     asm volatile("sfence.vma zero, zero");
+}
+
+static inline uint64 amoswap(uint64 val, volatile void *addr)
+{
+    uint64 rd;
+    asm volatile("amoswap.d %0, %1, %2"
+                 : "=r"(rd)
+                 : "r"(val), "r"((uint64)addr));
+    return rd;
 }
 
 #endif

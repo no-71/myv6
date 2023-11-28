@@ -22,6 +22,9 @@ int main(void)
     pull_up_proc();
 
     while (1) {
-        wait(NULL);
+        pid_t pid = wait(NULL);
+        if (pid == 1) {
+            pull_up_proc();
+        }
     }
 }

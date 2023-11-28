@@ -8,19 +8,24 @@
 extern void main(void);
 
 __attribute__((aligned(16))) char kstack_for_scheduler[MAX_CPU_NUM][PGSIZE];
-uint64 mtime_setting[6];
+uint64 mtime_setting[MAX_CPU_NUM][6];
 
-void set_m_csrs(void);
+void set_m_n_s_csrs(void);
 void setup_time_trap(void);
 
 void start(void)
 {
-    set_m_csrs();
+    if (r_tp() + 1 > MAX_CPU_NUM) {
+        while (1) {
+        }
+    }
+
+    set_m_n_s_csrs();
     setup_time_trap();
     asm volatile("mret");
 }
 
-void set_m_csrs(void)
+void set_m_n_s_csrs(void)
 {
     uint64 ms = r_mstatus();
     // hard ware config
@@ -56,19 +61,20 @@ void setup_time_trap(void)
     w_mie(r_mie() | XIE_MTIE);
 
     uint64 hart_id = r_tp();
-    // ask clint for starting time interrput
-    uint64 next_trap_time = READ_REG(CLINT_MTIME) + TIME_TRAP_INTERVAL;
-    WRITE_REG(CLINT_MTIMECMP(hart_id), next_trap_time);
 
+    // ask clint for starting time interrput
+    uint64 next_intr_time = READ_REG(CLINT_MTIME) + TIME_TRAP_INTERVAL;
+    WRITE_REG(CLINT_MTIMECMP(hart_id), next_intr_time);
     // information for timetrap handler to use
     // [0] = mtimecmp
     // [1] = mtime
     // [2] = interval of the time trap
     // [3..5] = save registers in time_trap_handler
-    mtime_setting[0] = CLINT_MTIMECMP(hart_id);
-    mtime_setting[1] = CLINT_MTIME;
-    mtime_setting[2] = TIME_TRAP_INTERVAL;
-    w_mscratch((uint64)mtime_setting);
+    uint64 *my_mtime_setting = mtime_setting[hart_id];
+    my_mtime_setting[0] = CLINT_MTIMECMP(hart_id);
+    my_mtime_setting[1] = CLINT_MTIME;
+    my_mtime_setting[2] = TIME_TRAP_INTERVAL;
+    w_mscratch((uint64)my_mtime_setting);
 
     w_mtvec((uint64)time_trap_vec);
 }
