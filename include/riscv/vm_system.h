@@ -2,6 +2,7 @@
 #define VM_SYSTEM_H_
 
 #include "config/basic_types.h"
+
 #define PGSIZE_BITS 12
 #define PGSIZE (1L << PGSIZE_BITS)
 #define PGSIZE_MASK ((1L << PGSIZE_BITS) - 1L)

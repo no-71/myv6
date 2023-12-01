@@ -60,6 +60,12 @@ brk:
     ecall
     ret
 
+.global getc
+getc:
+    li a7, 10
+    ecall
+    ret
+
 .global count_proc_num
 count_proc_num:
     li a7, 1000

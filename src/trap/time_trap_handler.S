@@ -15,7 +15,8 @@ time_trap_vec:
     sd a3, 0(a1)
 
     # raise software intrrupt
-    li a1, 2
+    csrr a1, sip
+    addi a1, a1, 2
     csrw sip, a1
 
     # finish, ret

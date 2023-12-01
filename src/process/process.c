@@ -17,14 +17,12 @@
 #include "vm/memory_layout.h"
 #include "vm/vm.h"
 
-#define PID_ALLOC_ERR -1
-
 struct process proc_set[STATIC_PROC_NUM];
 
 char pid_set[STATIC_PROC_NUM];
 struct spin_lock pid_lock;
 
-void init_process(void)
+void process_init(void)
 {
     init_spin_lock(&pid_lock);
 
@@ -35,9 +33,11 @@ void init_process(void)
     }
 }
 
+struct process *get_init_process(void) { return &proc_set[0]; }
+
 static int alloc_pid(void)
 {
-    int pid = PID_ALLOC_ERR;
+    int pid = -1;
     acquire_spin_lock(&pid_lock);
     for (int i = 0; i < STATIC_PROC_NUM; i++) {
         if (pid_set[i] == 0) {
@@ -119,7 +119,7 @@ static int init_user_process(struct process *find_proc)
     find_proc->kstack = (uint64)kstack;
 
     int pid = alloc_pid();
-    if (pid == PID_ALLOC_ERR) {
+    if (pid == -1) {
         kfree(kstack);
         goto err_ret;
     }
@@ -258,9 +258,9 @@ uint64 fork(struct process *proc)
     fork_proc->mem_end = proc->mem_end;
 
     pid_t pid = fork_proc->pid;
-    acquire_spin_lock(&proc->lock);
+    acquire_spin_lock(&fork_proc->lock);
     fork_proc->status = RUNABLE;
-    release_spin_lock(&proc->lock);
+    release_spin_lock(&fork_proc->lock);
 
     return pid;
 }
@@ -377,6 +377,12 @@ int load_new_process_for_exec(struct process *proc, struct elf_in_kernel *elf,
 uint64 exec(struct process *proc, char *file, int argc, char *argv[],
             char str_in_argv[])
 {
+    // load new proc
+    struct elf_in_kernel *elf = get_elf_in_kernel(file);
+    if (elf == NULL) {
+        return -1;
+    }
+
     // copy argv to memory
     void *argv_page = NULL;
     if (argc) {
@@ -386,14 +392,11 @@ uint64 exec(struct process *proc, char *file, int argc, char *argv[],
         }
     }
 
-    // load new proc
-    struct elf_in_kernel *elf = get_elf_in_kernel(file);
-    if (elf == NULL) {
-        return -1;
-    }
-
     int err = load_new_process_for_exec(proc, elf, argv_page);
     if (err) {
+        if (argv_page != NULL) {
+            kfree(argv_page);
+        }
         return -1;
     }
 
@@ -548,12 +551,14 @@ uint64 kill(pid_t pid)
 {
     struct process *target = NULL;
     for (int i = 0; i < STATIC_PROC_NUM; i++) {
-        acquire_spin_lock(&proc_set[i].lock);
-        if (proc_set[i].pid != pid) {
-            release_spin_lock(&proc_set[i].lock);
+        struct process *proc = &proc_set[i];
+
+        acquire_spin_lock(&proc->lock);
+        if (proc->status == USED || proc->pid != pid) {
+            release_spin_lock(&proc->lock);
             continue;
         }
-        target = &proc_set[i];
+        target = proc;
         break;
     }
     if (target == NULL) {
@@ -566,16 +571,53 @@ uint64 kill(pid_t pid)
     return 0;
 }
 
+static void lock_rest_process(char *locked)
+{
+    for (int i = 0; i < STATIC_PROC_NUM; i++) {
+        if (locked[i] == 0) {
+            acquire_spin_lock(&proc_set[i].lock);
+        }
+    }
+}
+
+static void lock_all_process_aux(struct process *proc, int pi, char *locked)
+{
+    locked[pi] = 1;
+    acquire_spin_lock(&proc->lock);
+    for (int i = 0; i < STATIC_PROC_NUM; i++) {
+        struct process *child = &proc_set[i];
+        if (child->parent == proc) {
+            lock_all_process_aux(child, i, locked);
+        }
+    }
+}
+
+static void lock_all_process(void)
+{
+    char locked[STATIC_PROC_NUM];
+    memset(locked, 0, sizeof(locked));
+
+    lock_all_process_aux(get_init_process(), 0, locked);
+    lock_rest_process(locked);
+}
+
+static void release_all_process(void)
+{
+    for (int i = 0; i < STATIC_PROC_NUM; i++) {
+        release_spin_lock(&proc_set[i].lock);
+    }
+}
+
 uint64 count_proc_num(void)
 {
-    // push_introff();
-    // int n = 0;
-    // for (int i = 0; i < STATIC_PROC_NUM; i++) {
-    //     if (proc_set[i].status != UNUSED) {
-    //         n++;
-    //     }
-    // }
-    // pop_introff();
-    // return n;
-    return 0;
+    lock_all_process();
+    int n = 0;
+    for (int i = 0; i < STATIC_PROC_NUM; i++) {
+        if (proc_set[i].status != UNUSED) {
+            n++;
+        }
+    }
+    release_all_process();
+
+    return n;
 }

@@ -1,7 +1,9 @@
 #include "riscv/regs.h"
+#include "riscv/vm_system.h"
 #include "sys_calls.h"
 #include "user_all.h"
-#include "vm/memory_layout.h"
+
+#define KERNEL_BASE 0x80000000L
 
 // allocate all mem, free it, and allocate again
 void mem(char *s)

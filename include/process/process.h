@@ -81,7 +81,7 @@ struct process {
     struct process *parent;
     struct spin_lock lock;
 
-    // private
+    // private, don't need lock
     uint64 ustack;
     uint64 mem_start;
     uint64 mem_brk;
@@ -93,7 +93,7 @@ struct process {
     struct context proc_context;
 };
 
-void init_process(void);
+void process_init(void);
 void setup_init_proc(void);
 uint64 fork(struct process *proc);
 __attribute__((noreturn)) uint64 exit(struct process *proc, uint64 xstatus);

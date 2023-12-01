@@ -13,12 +13,13 @@
 #define SYSCALL_WAIT 7
 #define SYSCALL_KILL 8
 #define SYSCALL_BRK 9
-#define SYSCALL_MAX_ID 9
+#define SYSCALL_GETC 10
+#define SYSCALL_MAX_ID 10
 
 #define SYSCALL_NUM (SYSCALL_MAX_ID + 1)
 
 #define DB_SYSCALL_COUNT_PROC_NUM 1000
 
-void handle_syscall(struct process *proc);
+int handle_syscall(struct process *proc);
 
 #endif

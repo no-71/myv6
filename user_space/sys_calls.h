@@ -13,6 +13,7 @@ __attribute__((noreturn)) int exit(int v);
 pid_t wait(int *xstatus);
 int kill(pid_t pid);
 int brk(void *addr);
+char getc(void);
 
 // db syscall
 int count_proc_num(void);

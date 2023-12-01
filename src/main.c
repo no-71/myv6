@@ -1,6 +1,10 @@
+/**
+ * 2023/12/02 1:10, I think we should just pause here for once.
+ */
+
 #include "io/console/console.h"
-#include "lock/spin_lock.h"
 #include "process/process.h"
+#include "riscv/plic.h"
 #include "riscv/regs.h"
 #include "scheduler/scheduler.h"
 #include "trap/kernel_trap.h"
@@ -12,21 +16,24 @@ volatile int kernel_init_finish = 0;
 
 void main(void)
 {
-    if (r_tp() == 0) {
+    if (cpu_id() == 0) {
         console_init();
 
         kprintf_init();
         kprintf("tinyos starts booting\n");
-        kprintf("cpu %d start\n", r_tp());
+        kprintf("hart %d start\n", cpu_id());
 
         kalloc_init();
         kvm_init();
         kvm_init_hart();
 
-        init_process();
+        process_init();
         setup_init_proc();
 
-        init_kernel_trap_hart();
+        plic_init();
+        plic_init_hart();
+
+        kernel_trap_init_hart();
 
         __sync_synchronize();
         kernel_init_finish = 1;
@@ -35,10 +42,11 @@ void main(void)
         }
         __sync_synchronize();
 
-        kprintf("cpu %d start\n", r_tp());
+        kprintf("hart %d start\n", cpu_id());
 
         kvm_init_hart();
-        init_kernel_trap_hart();
+        plic_init_hart();
+        kernel_trap_init_hart();
     }
 
     // start scheduler, running process

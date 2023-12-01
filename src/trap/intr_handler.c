@@ -1,6 +1,8 @@
 #include "trap/intr_handler.h"
 #include "cpus.h"
+#include "driver/uart.h"
 #include "lock/spin_lock.h"
+#include "riscv/plic.h"
 #include "riscv/regs.h"
 #include "riscv/trap_handle.h"
 #include "scheduler/swtch.h"
@@ -40,7 +42,18 @@ void yield(uint64 status)
 
 void intr_handler(uint64 scause)
 {
-    if (scause == SCAUSE_SSI) {
+    if (scause == SCAUSE_SEI) {
+        uint32 irq = plic_claim();
+        if (irq == UART_IRQ) {
+            uart_intr();
+        } else if (irq) {
+            kprintf("unexpect irq: %d\n", (int)irq);
+        }
+
+        if (irq) {
+            plic_complete(irq);
+        }
+    } else if (scause == SCAUSE_SSI) {
         w_sip(r_sip() & (~XIP_SSIP));
 
         if (my_proc() == NULL) {

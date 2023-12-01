@@ -12,10 +12,10 @@ uint64 handle_proc[MAX_CPU_NUM];
 
 void handle_proc_count(void)
 {
-    handle_proc[r_tp()]++;
-    if (handle_proc[r_tp()] % 1000 == 0) {
-        kprintf("cpu %d has handled %d proc\n", r_tp(),
-                (int)handle_proc[r_tp()]);
+    handle_proc[cpu_id()]++;
+    if (handle_proc[cpu_id()] % 1000 == 0) {
+        kprintf("cpu %d has handled %d proc\n", cpu_id(),
+                (int)handle_proc[cpu_id()]);
     }
 }
 
@@ -49,7 +49,7 @@ void scheduler(void)
         }
 
         if (has_runable_proc == 0) {
-            asm volatile("wfi");
+            // asm volatile("wfi");
         }
     }
 }

@@ -6,7 +6,6 @@
 #include "trap/introff.h"
 #include "util/kprint.h"
 
-// call with push_introff() called
 void sleep(struct spin_lock *lock, void *chain)
 {
     struct process *proc = my_proc();
@@ -16,12 +15,10 @@ void sleep(struct spin_lock *lock, void *chain)
 
     if (lock != &proc->lock) {
         acquire_spin_lock(&proc->lock);
+        release_spin_lock(lock);
     }
     proc->status = SLEEP;
     proc->chain = chain;
-    if (lock != &proc->lock) {
-        release_spin_lock(lock);
-    }
 
     switch_to_scheduler();
 
@@ -37,7 +34,7 @@ void wake_up(void *chain)
         struct process *proc = &proc_set[i];
         acquire_spin_lock(&proc->lock);
         if (proc->status == SLEEP && proc->chain == chain) {
-            proc->status = RUNNING;
+            proc->status = RUNABLE;
             proc->chain = NULL;
         }
         release_spin_lock(&proc->lock);

@@ -5,7 +5,7 @@
 #include "trap/kernel_trap_jump.h"
 #include "util/kprint.h"
 
-void init_kernel_trap_hart(void)
+void kernel_trap_init_hart(void)
 {
     w_stvec((uint64)kernel_trap_entry);
     w_sie(XIE_SSIE | XIE_SEIE);

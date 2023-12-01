@@ -1,13 +1,13 @@
 #include "lock/spin_lock.h"
-#include "riscv/regs.h"
+#include "cpus.h"
 #include "riscv/vm_system.h"
 #include "trap/introff.h"
 #include "util/kprint.h"
 
 void check_not_hold(struct spin_lock *lock)
 {
-    if (lock->cpu_id == r_tp()) {
-        PANIC_FN("acquire holding lock");
+    if (lock->cpu_id == cpu_id()) {
+        PANIC_FN("acquired holding lock");
     }
 }
 
@@ -16,7 +16,7 @@ void check_hold(struct spin_lock *lock)
     if (lock->locked != 1) {
         PANIC_FN("release spin_lock never acquired");
     }
-    if (lock->cpu_id != r_tp()) {
+    if (lock->cpu_id != cpu_id()) {
         PANIC_FN("release spin_lock not hold by this cpu");
     }
 }
@@ -31,7 +31,7 @@ void acquire_spin_lock(struct spin_lock *lock)
     __sync_synchronize();
 
     // lock acquire
-    lock->cpu_id = r_tp();
+    lock->cpu_id = cpu_id();
 }
 
 void release_spin_lock(struct spin_lock *lock)

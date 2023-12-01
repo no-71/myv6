@@ -17,22 +17,26 @@
 void user_trap_handler(void)
 {
     struct process *proc = my_proc();
+    int killed = 0;
 
     uint64 scause = r_scause();
     if (scause == SCAUSE_ECALL_FROM_U) {
-        intron();
         proc->proc_trap_frame->sepc += 4;
-        handle_syscall(proc);
+        intron();
+        int err = handle_syscall(proc);
+        if (err) {
+            killed = 1;
+        }
     } else if (scause & SCAUSE_INTERRPUT_MASK) {
         intr_handler(scause);
     } else {
         kprintf("unexpect exception from user:\n scause: %p\n stval: %p\n "
                 "spec: %p\n",
                 scause, r_stval(), r_sepc());
-        proc->killed = 1;
+        killed = 1;
     }
 
-    if (proc->killed == 1) {
+    if (killed || proc->killed) {
         exit(proc, -1);
     }
 
@@ -50,13 +54,13 @@ void user_trap_ret(void)
     sstatus |= XSTATUS_SPIE;
     sstatus &= (~XSTATUS_SPP);
     w_sstatus(sstatus);
-    w_sie(XIE_SSIE);
+    w_sie(XIE_SEIE | XIE_SSIE); // don't need it in fact
     w_sepc(proc->proc_trap_frame->sepc);
 
     // prepare for next user trap
     w_stvec(GET_TRAMPOLINE_FN_VA(user_trap_entry));
     w_sscratch(TRAPFRAME_BASE);
-    proc->proc_trap_frame->cpu_id = r_tp();
+    proc->proc_trap_frame->cpu_id = cpu_id();
 
     uint64 utrap_ret_end_va = GET_TRAMPOLINE_FN_VA(user_trap_ret_end);
     user_trap_ret_end_t *ret_end_fn = (user_trap_ret_end_t *)utrap_ret_end_va;

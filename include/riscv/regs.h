@@ -3,6 +3,8 @@
 
 #include "config/basic_types.h"
 
+#define GET_REG(TYPE, ADDR) (*((volatile TYPE *)(ADDR)))
+
 #define READ_REG(REG) (*((volatile uint64 *)(REG)))
 #define WRITE_REG(REG, VAL) (READ_REG(REG) = VAL)
 
