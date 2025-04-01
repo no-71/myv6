@@ -14,7 +14,8 @@ typedef unsigned int uint32;
 typedef unsigned long uint64;
 
 typedef unsigned char uchar;
-typedef uint32 uint;
+typedef unsigned short ushort;
+typedef unsigned int uint;
 
 typedef uint64 size_t;
 typedef int64 intptr_t;

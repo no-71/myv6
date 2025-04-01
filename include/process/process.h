@@ -1,11 +1,12 @@
 #ifndef PROCESS_H_
 #define PROCESS_H_
 
+#include "config/basic_config.h"
 #include "config/basic_types.h"
+#include "fs/fs.h"
+#include "fs/param.h"
 #include "lock/spin_lock.h"
 #include "vm/vm.h"
-
-#define STATIC_PROC_NUM 32
 
 struct context {
     uint64 ra;
@@ -87,6 +88,8 @@ struct process {
     uint64 mem_brk;
     uint64 mem_end;
     page_table proc_pgtable;
+    struct file *ofile[NOFILE];
+    struct inode *cwd;
 
     uint64 kstack;
     struct trap_frame *proc_trap_frame;
@@ -96,9 +99,9 @@ struct process {
 void process_init(void);
 void setup_init_proc(void);
 uint64 fork(struct process *proc);
-__attribute__((noreturn)) uint64 exit(struct process *proc, uint64 xstatus);
 uint64 exec(struct process *proc, char *file, int argc, char *argv[],
             char str_in_argv[]);
+__attribute__((noreturn)) uint64 exit(struct process *proc, uint64 xstatus);
 uint64 wait(struct process *proc, uint64 int_uva);
 uint64 kill(pid_t pid);
 uint64 count_proc_num(void);

@@ -1,5 +1,6 @@
 #include "syscall/syscall.h"
 #include "cpus.h"
+#include "fs/defs.h"
 #include "io/console/console.h"
 #include "process/process.h"
 #include "syscall/uvm.h"
@@ -12,27 +13,29 @@ typedef uint64 (*syscall_fn_t)(struct process *);
 
 uint64 get_arg_n(struct trap_frame *tf, int i) { return *(&tf->a0 + i); }
 
-uint64 syscall_putc(struct process *proc)
-{
-    console_putc(proc->proc_trap_frame->a0);
-    return 0;
-}
+// uint64 syscall_putc(struct process *proc)
+// {
+//     console_putc(proc->proc_trap_frame->a0);
+//     return 0;
+// }
 
-uint64 syscall_puts(struct process *proc)
-{
-    char str[64];
-    memset(str, 0, 64);
-    uint64 uva_str = get_arg_n(proc->proc_trap_frame, 0);
+// uint64 syscall_puts(struct process *proc)
+// {
+//     char str[64];
+//     memset(str, 0, 64);
+//     uint64 uva_str = get_arg_n(proc->proc_trap_frame, 0);
+//
+//     int err = copy_in_str(proc->proc_pgtable, uva_str, str, sizeof(str));
+//     if (err) {
+//         return -1;
+//     }
+//
+//     console_write(str, strlen(str));
+//
+//     return 0;
+// }
 
-    int err = copy_in_str(proc->proc_pgtable, uva_str, str, sizeof(str));
-    if (err) {
-        return -1;
-    }
-
-    console_write(str, strlen(str));
-
-    return 0;
-}
+uint64 syscall_intokernel(struct process *proc) { return -1; }
 
 uint64 syscall_sbrk(struct process *proc)
 {
@@ -129,15 +132,23 @@ uint64 syscall_brk(struct process *proc)
     return brk(proc, get_arg_n(proc->proc_trap_frame, 0));
 }
 
-uint64 syscall_getc(struct process *proc) { return console_getc(); }
+// uint64 syscall_getc(struct process *proc) { return console_getc(); }
+
+#define SYSTABLE_ELEM(NAMEC, NAMEL) [SYSCALL_##NAMEC] = syscall_##NAMEL
 
 syscall_fn_t syscall_table[SYSCALL_NUM] = {
-    [SYSCALL_PUTC] = syscall_putc, [SYSCALL_PRINT] = syscall_puts,
-    [SYSCALL_SBRK] = syscall_sbrk, [SYSCALL_FORK] = syscall_fork,
-    [SYSCALL_EXEC] = syscall_exec, [SYSCALL_GETPID] = syscall_getpid,
-    [SYSCALL_EXIT] = syscall_exit, [SYSCALL_WAIT] = syscall_wait,
-    [SYSCALL_KILL] = syscall_kill, [SYSCALL_BRK] = syscall_brk,
-    [SYSCALL_GETC] = syscall_getc,
+    SYSTABLE_ELEM(INTOK, intokernel), SYSTABLE_ELEM(1EMP, intokernel),
+    SYSTABLE_ELEM(SBRK, sbrk),        SYSTABLE_ELEM(FORK, fork),
+    SYSTABLE_ELEM(EXEC, exec),        SYSTABLE_ELEM(GETPID, getpid),
+    SYSTABLE_ELEM(EXIT, exit),        SYSTABLE_ELEM(WAIT, wait),
+    SYSTABLE_ELEM(KILL, kill),        SYSTABLE_ELEM(BRK, brk),
+    SYSTABLE_ELEM(10EMP, intokernel), SYSTABLE_ELEM(CHDIR, chdir),
+    SYSTABLE_ELEM(CLOSE, close),      SYSTABLE_ELEM(DUP, dup),
+    SYSTABLE_ELEM(FSTAT, fstat),      SYSTABLE_ELEM(LINK, link),
+    SYSTABLE_ELEM(MKDIR, mkdir),      SYSTABLE_ELEM(MKNOD, mknod),
+    SYSTABLE_ELEM(OPEN, open),        SYSTABLE_ELEM(PIPE, pipe),
+    SYSTABLE_ELEM(READ, read),        SYSTABLE_ELEM(UNLINK, unlink),
+    SYSTABLE_ELEM(WRITE, write),
 };
 
 int handle_db_syscall(struct process *proc, uint64 syscall_id)
@@ -147,7 +158,7 @@ int handle_db_syscall(struct process *proc, uint64 syscall_id)
         ret_val = count_proc_num();
     } else {
         kprintf("unexpect syscall id: %d\n", syscall_id);
-        return 1;
+        return -1;
     }
 
     proc->proc_trap_frame->a0 = ret_val;

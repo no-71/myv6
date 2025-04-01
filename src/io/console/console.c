@@ -1,17 +1,15 @@
 #include "io/console/console.h"
+#include "cpus.h"
 #include "driver/uart.h"
+#include "fs/file.h"
 #include "lock/spin_lock.h"
 #include "scheduler/sleep.h"
 #include "trap/introff.h"
+#include "util/kprint.h"
+#include "vm/vm.h"
 
 uint64 input_lines = 0;
 struct spin_lock input_lines_lock;
-
-void console_init()
-{
-    init_spin_lock(&input_lines_lock);
-    uartinit();
-}
 
 void console_kputc(char c)
 {
@@ -63,6 +61,35 @@ char console_getc(void)
     return c;
 }
 
+static int console_write_dev(int userdst, uint64 ustr, int len)
+{
+    for (int i = 0; i < len; i++) {
+        char c;
+        int err = copyin_uork(my_proc()->proc_pgtable, &c, ustr, 1, userdst);
+        if (err) {
+            return i;
+        }
+        console_putc(c);
+        ustr++;
+    }
+
+    return len;
+}
+
+static int console_read_dev(int userdst, uint64 ustr, int len)
+{
+    for (int i = 0; i < len; i++) {
+        char c = console_getc();
+        int err = copyout_uork(my_proc()->proc_pgtable, ustr, &c, 1, userdst);
+        if (err) {
+            return i;
+        }
+        ustr++;
+    }
+
+    return len;
+}
+
 int console_intr(char c)
 {
     switch (c) {
@@ -85,4 +112,13 @@ int console_intr(char c)
         console_kputc(c);
         return GET_CH;
     }
+}
+
+void console_init()
+{
+    init_spin_lock(&input_lines_lock);
+    uartinit();
+
+    devsw[CONSOLE].write = console_write_dev;
+    devsw[CONSOLE].read = console_read_dev;
 }

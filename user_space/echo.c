@@ -1,4 +1,4 @@
-#include "user_all.h"
+#include "ulib/user_all.h"
 
 int main(int argc, char *argv[])
 {
@@ -7,8 +7,9 @@ int main(int argc, char *argv[])
     }
 
     for (int i = 1; i < argc; i++) {
-        puts(argv[i]);
+        printf("%s", argv[i]);
     }
+    printf("\n");
 
     return 0;
 }

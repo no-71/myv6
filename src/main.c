@@ -1,7 +1,10 @@
 /**
  * 2023/12/02 1:10, I think we should just pause here for once.
+ * 2025/03/30 23:08
  */
 
+#include "driver/virtio.h"
+#include "fs/defs.h"
 #include "io/console/console.h"
 #include "process/process.h"
 #include "riscv/plic.h"
@@ -28,12 +31,17 @@ void main(void)
         kvm_init_hart();
 
         process_init();
-        setup_init_proc();
 
         plic_init();
         plic_init_hart();
-
         kernel_trap_init_hart();
+
+        binit();
+        iinit();
+        fileinit();
+        virtio_disk_init();
+
+        setup_init_proc();
 
         __sync_synchronize();
         kernel_init_finish = 1;

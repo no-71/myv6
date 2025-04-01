@@ -5,6 +5,7 @@
 #include "config/basic_types.h"
 #include "process/process.h"
 #include "riscv/regs.h"
+#include "trap/introff.h"
 
 struct cpu {
     struct process *my_proc;
@@ -29,6 +30,12 @@ static inline struct cpu *my_cpu(void)
     return &cpus[cpu_id()];
 }
 
-static inline struct process *my_proc(void) { return my_cpu()->my_proc; }
+static inline struct process *my_proc(void)
+{
+    push_introff();
+    struct process *mine = my_cpu()->my_proc;
+    pop_introff();
+    return mine;
+}
 
 #endif

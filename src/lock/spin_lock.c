@@ -23,9 +23,8 @@ void check_hold(struct spin_lock *lock)
 
 void acquire_spin_lock(struct spin_lock *lock)
 {
-    check_not_hold(lock);
-
     push_introff();
+    check_not_hold(lock);
     while (__sync_lock_test_and_set(&lock->locked, 1)) {
     }
     __sync_synchronize();

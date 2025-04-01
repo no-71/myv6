@@ -1,6 +1,12 @@
 #include "process/process.h"
 #include "binary_code/binary_codes.h"
 #include "cpus.h"
+#include "driver/virtio.h"
+#include "fs/defs.h"
+#include "fs/file.h"
+#include "fs/fs.h"
+#include "fs/param.h"
+#include "fs/stat.h"
 #include "lock/spin_lock.h"
 #include "process/process_loader.h"
 #include "riscv/vm_system.h"
@@ -17,6 +23,9 @@
 #include "vm/memory_layout.h"
 #include "vm/vm.h"
 
+int init_fs;
+
+// proc lock acquired in sequence: parent -> child -> childchild
 struct process proc_set[STATIC_PROC_NUM];
 
 char pid_set[STATIC_PROC_NUM];
@@ -33,7 +42,7 @@ void process_init(void)
     }
 }
 
-struct process *get_init_process(void) { return &proc_set[0]; }
+static struct process *get_init_process(void) { return &proc_set[0]; }
 
 static int alloc_pid(void)
 {
@@ -61,9 +70,14 @@ static void free_pid(int i)
     release_spin_lock(&pid_lock);
 }
 
-void user_proc_entry(void)
+static void user_proc_entry(void)
 {
     release_spin_lock(&my_proc()->lock);
+
+    if (init_fs == 0) {
+        init_fs = 1;
+        fsinit(ROOTDEV);
+    }
 
     user_trap_ret();
 }
@@ -72,12 +86,12 @@ static int init_user_pagetable(struct process *proc, page_table pgtable)
 {
     void *trap_frame_page = kalloc();
     if (trap_frame_page == NULL) {
-        return 1;
+        return -1;
     }
     void *ustack = kalloc();
     if (ustack == NULL) {
         kfree(trap_frame_page);
-        return 1;
+        return -1;
     }
 
     int err = map_page(pgtable, TRAMPOLINE_BASE,
@@ -89,7 +103,7 @@ static int init_user_pagetable(struct process *proc, page_table pgtable)
     if (err) {
         kfree(trap_frame_page);
         kfree(ustack);
-        return 1;
+        return -1;
     }
 
     proc->ustack = (uint64)ustack;
@@ -102,14 +116,14 @@ static int init_user_process(struct process *find_proc)
 {
     page_table pgtable = get_pagetable();
     if (pgtable == NULL) {
-        return 1;
+        return -1;
     }
     find_proc->proc_pgtable = pgtable;
 
     int err = init_user_pagetable(find_proc, pgtable);
     if (err) {
         free_page_table(find_proc->proc_pgtable);
-        return 1;
+        return -1;
     }
 
     void *kstack = kalloc();
@@ -152,7 +166,7 @@ err_ret:
     free_page_table(find_proc->proc_pgtable);
     kfree((void *)find_proc->ustack);
     kfree(find_proc->proc_trap_frame);
-    return 1;
+    return -1;
 }
 
 static struct process *alloc_process(void)
@@ -176,6 +190,16 @@ static struct process *alloc_process(void)
     return NULL;
 }
 
+static int fake_elf_read(struct inode *ip, int user_dst, uint64 dst, uint off,
+                         uint n)
+{
+    if (user_dst == UPTR) {
+        panic("fake_elf_read: try to read into user addr");
+    }
+    memmove((char *)dst, ((char *)ip) + off, n);
+    return n;
+}
+
 void setup_init_proc(void)
 {
     struct process *proc = alloc_process();
@@ -184,7 +208,7 @@ void setup_init_proc(void)
     }
 
     uint64 mem_end = load_process_elf(proc->proc_pgtable, init_code_binary,
-                                      init_code_binary_size);
+                                      init_code_binary_size, fake_elf_read);
     if (mem_end == -1) {
         PANIC_FN("fail to setup init process, elf load error");
     }
@@ -192,6 +216,8 @@ void setup_init_proc(void)
     proc->mem_start = mem_end;
     proc->mem_brk = mem_end;
     proc->mem_end = mem_end;
+
+    proc->cwd = namei("/");
 }
 
 static void free_user_memory(page_table pgtable, uint64 mem_end)
@@ -205,17 +231,25 @@ static void free_process_user_memory(struct process *proc)
     free_user_memory(proc->proc_pgtable, proc->mem_end);
 }
 
-// call with proc lock
+// call with proc locked
+// this function entirely free the process, make final free,
+// and set the proc to unused
 static void free_process(struct process *proc)
 {
+    // free user memory
     free_pid(proc->pid);
     free_process_user_memory(proc);
     kfree((void *)proc->ustack);
     kfree(proc->proc_trap_frame);
     free_page_table(proc->proc_pgtable);
 
+    // free kernel memory
     kfree((void *)proc->kstack);
 
+    // files and inode were freed when exit
+    // don't need to free here
+
+    // set other var to init status
     proc->pid = -1;
     proc->status = UNUSED;
     proc->killed = 0;
@@ -257,6 +291,14 @@ uint64 fork(struct process *proc)
     fork_proc->mem_brk = proc->mem_brk;
     fork_proc->mem_end = proc->mem_end;
 
+    // dup user opened file and cwd
+    for (int i = 0; i < NOFILE; i++) {
+        if (proc->ofile[i]) {
+            fork_proc->ofile[i] = filedup(proc->ofile[i]);
+        }
+    }
+    fork_proc->cwd = idup(proc->cwd);
+
     pid_t pid = fork_proc->pid;
     acquire_spin_lock(&fork_proc->lock);
     fork_proc->status = RUNABLE;
@@ -272,23 +314,23 @@ struct elf_in_kernel {
 } all_elf_in_kernel[64] = {
     (struct elf_in_kernel){ "init_code", init_code_binary,
                             &init_code_binary_size },
-    (struct elf_in_kernel){ "usertest", usertest_binary,
-                            &usertest_binary_size },
-    (struct elf_in_kernel){ "echo", echo_binary, &echo_binary_size }
+    // (struct elf_in_kernel){ "usertest", usertest_binary,
+    //                         &usertest_binary_size },
+    // (struct elf_in_kernel){ "echo", echo_binary, &echo_binary_size }
 };
 
-struct elf_in_kernel *get_elf_in_kernel(char *name)
-{
-    for (int i = 0; all_elf_in_kernel[i].name; i++) {
-        if (strcmp(name, all_elf_in_kernel[i].name) == 0) {
-            return &all_elf_in_kernel[i];
-        }
-    }
+// static struct elf_in_kernel *get_elf_in_kernel(char *name)
+// {
+//     for (int i = 0; all_elf_in_kernel[i].name; i++) {
+//         if (strcmp(name, all_elf_in_kernel[i].name) == 0) {
+//             return &all_elf_in_kernel[i];
+//         }
+//     }
+//
+//     return NULL;
+// }
 
-    return NULL;
-}
-
-static void *copy_argv_to_page(int argc, char *argv[], char str_in_argv[])
+static void *alloc_page_copy_argv(int argc, char *argv[], char str_in_argv[])
 {
     char *page = kalloc();
     if (page == NULL) {
@@ -307,12 +349,12 @@ static void *copy_argv_to_page(int argc, char *argv[], char str_in_argv[])
     return page;
 }
 
-int map_argv_to_page_table(page_table pgtable, uint64 uva, char *argv_page,
-                           uint64 attribute)
+static int map_argv_to_page_table(page_table pgtable, uint64 uva,
+                                  char *argv_page, uint64 attribute)
 {
     int err = map_page(pgtable, uva, (uint64)argv_page, attribute);
     if (err) {
-        return 1;
+        return -1;
     }
 
     uint64 *pchar_uva = (uint64 *)argv_page;
@@ -323,18 +365,25 @@ int map_argv_to_page_table(page_table pgtable, uint64 uva, char *argv_page,
     return 0;
 }
 
-int load_new_process_for_exec(struct process *proc, struct elf_in_kernel *elf,
-                              void *argv_page)
+static int load_new_process_for_exec(struct process *proc, struct inode *elf,
+                                     void *argv_page)
 {
     page_table new_pgtable = get_pagetable();
     if (new_pgtable == NULL) {
-        return 1;
+        return -1;
     }
 
-    uint64 new_mem_end = load_process_elf(new_pgtable, elf->binary, *elf->size);
-    if (new_mem_end == -1) {
+    ilock(elf);
+    if (elf->type != T_FILE) {
+        iunlock(elf);
         kfree(new_pgtable);
-        return 1;
+        return -1;
+    }
+    uint64 new_mem_end = load_process_elf(new_pgtable, elf, elf->size, readi);
+    iunlock(elf);
+    if (new_mem_end == -1) {
+        free_page_table(new_pgtable);
+        return -1;
     }
 
     // map allocated memory
@@ -347,7 +396,7 @@ int load_new_process_for_exec(struct process *proc, struct elf_in_kernel *elf,
     if (err) {
         free_user_memory(new_pgtable, new_mem_end);
         free_page_table(new_pgtable);
-        return 1;
+        return -1;
     }
 
     // map argv page
@@ -357,7 +406,7 @@ int load_new_process_for_exec(struct process *proc, struct elf_in_kernel *elf,
         if (err) {
             free_user_memory(new_pgtable, new_mem_end);
             free_page_table(new_pgtable);
-            return 1;
+            return -1;
         }
         new_mem_end += PGSIZE;
     }
@@ -377,22 +426,29 @@ int load_new_process_for_exec(struct process *proc, struct elf_in_kernel *elf,
 uint64 exec(struct process *proc, char *file, int argc, char *argv[],
             char str_in_argv[])
 {
-    // load new proc
-    struct elf_in_kernel *elf = get_elf_in_kernel(file);
-    if (elf == NULL) {
+    // load proc elf from fs
+    struct inode *elf_inode = namei(file);
+    if (elf_inode == NULL) {
         return -1;
     }
 
     // copy argv to memory
     void *argv_page = NULL;
     if (argc) {
-        argv_page = copy_argv_to_page(argc, argv, str_in_argv);
+        argv_page = alloc_page_copy_argv(argc, argv, str_in_argv);
         if (argv_page == NULL) {
+            begin_op();
+            iput(elf_inode);
+            end_op();
             return -1;
         }
     }
 
-    int err = load_new_process_for_exec(proc, elf, argv_page);
+    // load the elf to proc
+    int err = load_new_process_for_exec(proc, elf_inode, argv_page);
+    begin_op();
+    iput(elf_inode);
+    end_op();
     if (err) {
         if (argv_page != NULL) {
             kfree(argv_page);
@@ -435,6 +491,18 @@ __attribute__((noreturn)) uint64 exit(struct process *proc, uint64 xstatus)
     if (proc->pid == 0) {
         PANIC_FN("init proc exit");
     }
+
+    // free opened files and cwd
+    for (int i = 0; i < NOFILE; i++) {
+        if (proc->ofile[i]) {
+            fileclose(proc->ofile[i]);
+            proc->ofile[i] = NULL;
+        }
+    }
+    begin_op();
+    iput(proc->cwd);
+    end_op();
+    proc->cwd = NULL;
 
     // reparent
     acquire_spin_lock(&proc_set[0].lock);
@@ -506,7 +574,7 @@ static int handle_exit_child(struct process *proc, uint64 int_uva, pid_t *pid)
                                &other_proc->xstatus, sizeof(int));
             if (err) {
                 release_spin_lock(&other_proc->lock);
-                return 1;
+                return -1;
             }
         }
         free_process(other_proc);

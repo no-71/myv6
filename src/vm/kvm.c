@@ -1,6 +1,7 @@
 #include "vm/kvm.h"
 #include "config/basic_types.h"
 #include "driver/uart.h"
+#include "fs/memlayout.h"
 #include "riscv/clint.h"
 #include "riscv/plic.h"
 #include "riscv/regs.h"
@@ -35,6 +36,9 @@ void kvm_init(void)
     map_err |= map_n_pages(kernel_page_table, UART_BASE,
                            ROUND_UP_PGSIZE(UART_SIZE) / PGSIZE, UART_BASE,
                            PTE_R | PTE_W);
+
+    map_err |=
+        map_n_pages(kernel_page_table, VIRTIO0, PGSIZE, VIRTIO0, PTE_R | PTE_W);
 
     map_err |= map_n_pages(kernel_page_table, KERNEL_BASE,
                            ((uint64)etext - KERNEL_BASE) / PGSIZE, KERNEL_BASE,

@@ -1,7 +1,7 @@
 #include "riscv/regs.h"
 #include "riscv/vm_system.h"
-#include "sys_calls.h"
-#include "user_all.h"
+#include "ulib/sys_calls.h"
+#include "ulib/user_all.h"
 
 #define KERNEL_BASE 0x80000000L
 
@@ -523,7 +523,7 @@ void execout(char *s)
         }
     }
 
-    putc('\n');
+    printf("\n");
     exit(0);
 }
 

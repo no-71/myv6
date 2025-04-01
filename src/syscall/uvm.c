@@ -27,7 +27,7 @@ int increment_mem_end(struct process *proc, uint64 pages)
 
 err_ret:
     unmap_n_pages_free(proc->proc_pgtable, pre_mem_end, cur / PGSIZE);
-    return 1;
+    return -1;
 }
 
 void decrease_mem_end(struct process *proc, uint64 pages)
@@ -79,47 +79,3 @@ uint64 sbrk(struct process *proc, int64 increment)
 
     return pre_mem_brk;
 }
-
-/*
-uint64 sbrk(struct process *proc, uint64 increment)
-{
-    uint64 pre_mem_brk = proc->mem_brk;
-    uint64 pre_mem_end = proc->mem_end;
-    if (pre_mem_brk > pre_mem_end) {
-        PANIC_FN("mem_brk > mem_end");
-    }
-    if (pre_mem_end % PGSIZE) {
-        PANIC_FN("mem_end is not aligned to PGSIZE");
-    }
-
-    if (pre_mem_brk + increment <= pre_mem_end) {
-        proc->mem_brk = pre_mem_brk + increment;
-        return pre_mem_brk;
-    }
-
-    uint64 inc_page_size =
-        ROUND_UP_PGSIZE(pre_mem_brk + increment) - pre_mem_end;
-    uint64 cur;
-    for (cur = 0; cur < inc_page_size; cur += PGSIZE) {
-        void *page = kalloc();
-        if (page == NULL) {
-            goto err_ret;
-        }
-
-        int err = map_page(proc->proc_pgtable, pre_mem_end + cur, (uint64)page,
-                           PTE_R | PTE_W | PTE_X | PTE_U);
-        if (err) {
-            kfree(page);
-            goto err_ret;
-        }
-    }
-
-    proc->mem_brk = pre_mem_brk + increment;
-    proc->mem_end = pre_mem_end + inc_page_size;
-    return pre_mem_brk;
-
-err_ret:
-    unmap_n_pages_free(proc->proc_pgtable, pre_mem_end, cur / PGSIZE);
-    return -1;
-}
-*/

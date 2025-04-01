@@ -1,6 +1,7 @@
 #include "trap/intr_handler.h"
 #include "cpus.h"
 #include "driver/uart.h"
+#include "driver/virtio.h"
 #include "lock/spin_lock.h"
 #include "riscv/plic.h"
 #include "riscv/regs.h"
@@ -46,6 +47,9 @@ void intr_handler(uint64 scause)
         uint32 irq = plic_claim();
         if (irq == UART_IRQ) {
             uart_intr();
+        } else if (irq == VIRTIO0_IRQ) {
+            // kprintf("\n into vitio \n");
+            virtio_disk_intr();
         } else if (irq) {
             kprintf("unexpect irq: %d\n", (int)irq);
         }

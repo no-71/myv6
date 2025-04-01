@@ -66,7 +66,7 @@ static int uart_putc_output_queue(void)
         uart_oq_beg++;
         return 0;
     }
-    return 1;
+    return -1;
 }
 
 static void uart_running_output_queue(void)
@@ -104,7 +104,7 @@ int uart_getc_input_queue(void)
             return 0;
         }
     }
-    return 1;
+    return -1;
 }
 
 static void uart_running_input_queue(void)

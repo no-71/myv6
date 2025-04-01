@@ -7,9 +7,9 @@
 #include <math.h>
 #include <stddef.h>
 
-enum { ALLOC, NO_ALLOC };
-enum { FREE, NO_FREE };
-enum { PANIC, NO_PANIC };
+enum { NO_ALLOC, ALLOC };
+enum { NO_FREE, FREE };
+enum { NO_PANIC, PANIC };
 enum { COPY_IN, COPY_OUT, COPY_IN_STR, COPY_OUT_STR };
 enum { COPY_SUCCESS, COPY_FAIL, COPY_FINISH };
 
@@ -27,6 +27,25 @@ void *memcpy(void *dest, void *src, size_t len)
         ((char *)dest)[i] = ((char *)src)[i];
     }
     return dest;
+}
+
+void *memmove(void *vdst, const void *vsrc, int n)
+{
+    char *dst;
+    const char *src;
+
+    dst = vdst;
+    src = vsrc;
+    if (src > dst) {
+        while (n-- > 0)
+            *dst++ = *src++;
+    } else {
+        dst += n;
+        src += n;
+        while (n-- > 0)
+            *--dst = *--src;
+    }
+    return vdst;
 }
 
 /**
@@ -75,7 +94,7 @@ int map_page(page_table pgtable, uint64 va, uint64 pa, uint64 attribute)
 {
     pte *target = walk(pgtable, va, ALLOC);
     if (target == NULL) {
-        return 1;
+        return -1;
     }
     if (*target & PTE_V) {
         PANIC_FN("try to map page that has been mapped");
@@ -93,7 +112,7 @@ int map_n_pages(page_table pgtable, uint64 va, int n, uint64 pa,
         int err = map_page(pgtable, va, pa, attribute);
         if (err) {
             unmap_n_pages(pgtable, va_start, i);
-            return 1;
+            return -1;
         }
 
         va += PGSIZE;
@@ -267,15 +286,15 @@ int merge_page_table_in_interval(page_table mapped_table, page_table pgtable,
 
 err_ret:
     unmap_n_pages_free_hole(mapped_table, start, (cur_mem - start) / PGSIZE);
-    return 1;
+    return -1;
 }
 
 int check_uva_attribute_valid(uint64 attribute)
 {
     if ((attribute & PTE_U) == 0)
-        return 1;
+        return -1;
     if ((attribute & PTE_R) == 0 && (attribute & PTE_X) == 0)
-        return 1;
+        return -1;
     return 0;
 }
 
@@ -331,11 +350,11 @@ int copy_in_or_out_may_str(page_table upgtable, uint64 uva, char *kva,
     while (size > 0) {
         pte *pte = walk(upgtable, uva, NO_ALLOC);
         if (pte == NULL) {
-            return 1;
+            return -1;
         }
         uint64 attribute = PTE_GET_ATTRIBUTE(*pte);
         if (check_uva_attribute_valid(attribute)) {
-            return 1;
+            return -1;
         }
 
         char *page = (char *)PTE_GET_PA(*pte);
@@ -348,7 +367,7 @@ int copy_in_or_out_may_str(page_table upgtable, uint64 uva, char *kva,
         case COPY_SUCCESS:
             break;
         case COPY_FAIL:
-            return 1;
+            return -1;
         case COPY_FINISH:
             return 0;
         }
@@ -379,6 +398,48 @@ int copy_in_str(page_table upgtable, uint64 uva, char *kva, uint64 size)
 int copy_out_str(page_table upgtable, uint64 uva, char *kva, uint64 size)
 {
     return copy_in_or_out_may_str(upgtable, uva, kva, size, COPY_OUT_STR);
+}
+
+int copyin(page_table pgtable, char *dst, uint64 src, uint64 size)
+{
+    return copy_in(pgtable, src, dst, size);
+}
+
+int copyout(page_table pgtable, uint64 dst, char *src, uint64 size)
+{
+    return copy_out(pgtable, dst, src, size);
+}
+
+int copyinstr(page_table pgtable, char *dst, uint64 src, uint64 size)
+{
+    return copy_in_str(pgtable, src, dst, size);
+}
+
+int copyoutstr(page_table upgtable, uint64 dst, char *src, uint64 size)
+{
+    return copy_out_str(upgtable, dst, src, size);
+}
+
+int copyout_uork(page_table pgtable, uint64 dst, char *src, uint64 size,
+                 int user_dst)
+{
+    if (user_dst == UPTR) {
+        return copyout(pgtable, dst, src, size);
+    } else {
+        memmove((char *)dst, src, size);
+        return 0;
+    }
+}
+
+int copyin_uork(page_table pgtable, char *dst, uint64 src, uint64 size,
+                int user_src)
+{
+    if (user_src == UPTR) {
+        return copyin(pgtable, dst, src, size);
+    } else {
+        memmove(dst, (char *)src, size);
+        return 0;
+    }
 }
 
 void vmprint_aux(int depth, page_table pgtable, int max_depth,

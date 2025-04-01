@@ -1,10 +1,7 @@
-#ifndef MALLOC_H_
-#define MALLOC_H_
-
-#include "sys_calls.h"
-
 // Memory allocator by Kernighan and Ritchie,
 // The C programming Language, 2nd ed.  Section 8.7.
+
+#include "ulib/malloc.h"
 
 typedef long Align;
 
@@ -85,5 +82,3 @@ void *malloc(uint nbytes)
                 return 0;
     }
 }
-
-#endif

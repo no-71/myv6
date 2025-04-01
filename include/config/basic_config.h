@@ -2,6 +2,7 @@
 #define BASIC_CONFIG_H_
 
 #define MAX_CPU_NUM 8
+#define STATIC_PROC_NUM 32
 #define TIME_TRAP_INTERVAL 1000000
 
 #endif
