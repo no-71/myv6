@@ -49,7 +49,8 @@ void scheduler(void)
         }
 
         if (has_runable_proc == 0) {
-            // asm volatile("wfi");
+            // intr already has enable
+            asm volatile("wfi");
         }
     }
 }

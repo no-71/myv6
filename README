@@ -1,0 +1,7 @@
+Tiny opertating system. It is a re-implementation of xv6.
+
+
+
+## Third-party code
+
+- The filesystem module uses code from [xv6](https://github.com/mit-pdos/xv6-riscv) under the MIT license.
