@@ -2,6 +2,11 @@
 #define BASIC_TYPES_H_
 
 #define NULL ((void *)0)
+#define EOF (-1)
+
+enum { false, true };
+
+typedef _Bool bool;
 
 typedef char int8;
 typedef short int16;

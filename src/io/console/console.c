@@ -53,7 +53,7 @@ char console_getc(void)
         c = uart_getc();
         acquire_spin_lock(&input_lines_lock);
     }
-    if (c == '\n') {
+    if (c == '\n' || c == CTRL('D')) {
         input_lines--;
     }
 
@@ -80,6 +80,9 @@ static int console_read_dev(int userdst, uint64 ustr, int len)
 {
     for (int i = 0; i < len; i++) {
         char c = console_getc();
+        if (c == CTRL('D')) {
+            return -1;
+        }
         int err = copyout_uork(my_proc()->proc_pgtable, ustr, &c, 1, userdst);
         if (err) {
             return i;
@@ -94,19 +97,22 @@ int console_intr(char c)
 {
     switch (c) {
     case CTRL('H'):
-        console_kputc('\b');
-        console_kputc(' ');
-        console_kputc('\b');
+        if (uart_input_not_empty()) {
+            console_kputc('\b');
+            console_kputc(' ');
+            console_kputc('\b');
+        }
         return BACKSPACE;
 
     case '\r':
     case '\n':
+    case CTRL('D'):
         console_kputc('\n');
         acquire_spin_lock(&input_lines_lock);
         input_lines++;
         release_spin_lock(&input_lines_lock);
         wake_up(&input_lines);
-        return GET_LINE;
+        return c == CTRL('D') ? GET_EOF : GET_LINE;
 
     default:
         console_kputc(c);

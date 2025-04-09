@@ -5,7 +5,7 @@
 
 #define CTRL(x) ((x) - '@') // Control-x
 
-enum { BACKSPACE, GET_LINE, GET_CH };
+enum { BACKSPACE, GET_LINE, GET_EOF, GET_CH };
 
 void console_init();
 void console_kputc(char c);

@@ -1,16 +1,17 @@
-#include "include/fs/param.h"
-// #include "kernel/fcntl.h"
-// #include "kernel/fs.h"
+/*
+ * this test file used code from xv6 usertests.c,
+ * we add some tests for system calls from tinyos.
+ */
+
 #include "include/fs/memlayout.h"
+#include "include/fs/param.h"
 #include "include/riscv/regs.h"
 #include "include/riscv/vm_system.h"
-// #include "kernel/stat.h"
-// #include "kernel/syscall.h"
+#include "ulib/sys_calls.h"
 #include "ulib/user_all.h"
-// #include "user/user.h"
 
 //
-// Tests xv6 system calls.  usertests without arguments runs them all
+// Tests tinyos system calls.  usertests without arguments runs them all
 // and usertests <name> runs <name> test. The test runner creates for
 // each test a process and based on the exit status of the process,
 // the test runner reports "OK" or "FAILED".  Some tests result in
@@ -18,10 +19,618 @@
 // prints "OK".
 //
 
-#define BUFSZ (MAXOPBLOCKS + 2) * BSIZE
+#define LEN(x, type) (sizeof(x) / sizeof(type))
+#define BUFSZ ((MAXOPBLOCKS + 2) * BSIZE)
 
 char buf[BUFSZ];
 char name[3];
+
+static int wait_children(char *s, int count)
+{
+    int xs = 0;
+    for (int i = 0; i < count; i++) {
+        int xstate = 1;
+        int pid = wait(&xstate);
+        if (pid == -1) {
+            printf("%s: wait_children: failed in %d child\n", s, i);
+            exit(1);
+        }
+        xs |= xstate;
+    }
+    return xs;
+}
+
+static void do_test_n_times(char *s, void f(char *s), int n)
+{
+    for (int i = 0; i < n; i++) {
+        int pid = fork();
+        if (pid < 0) {
+            printf("%s: fork failed\n", s);
+            exit(1);
+        }
+        if (pid == 0) {
+            f(s);
+            exit(0);
+        }
+        int xstatus = wait_children(s, 1);
+        if (xstatus) {
+            printf("fail when execute do_enter_pg %d\n", i);
+            exit(1);
+        }
+        printf("%d..", i);
+    }
+    exit(0);
+}
+
+void exclusive_occupy(char *s)
+{
+    int err = proc_occupy_cpu();
+    if (err == 0) {
+        printf("proc occuy cpu in default group\n");
+        exit(1);
+    }
+
+    err = create_proc_group();
+    if (err == -1) {
+        printf("create proc group fail\n");
+        exit(1);
+    }
+
+    int pp_end[2], n;
+    if (pipe(pp_end) < 0) {
+        printf("pipe() failed in countfree()\n");
+        exit(1);
+    }
+    int pid = fork();
+    if (pid < 0) {
+        printf("%s: fork failed\n", s);
+        exit(1);
+    }
+    if (pid == 0) {
+        // wait for parent
+        read(pp_end[0], &n, 1);
+        exit(0);
+    }
+
+    err = proc_occupy_cpu();
+    if (err == 0) {
+        printf("proc occuy cpu in proc group with 2 proc\n");
+        exit(1);
+    }
+    write(pp_end[1], &n, 1);
+    wait_children(s, 1);
+
+    err = proc_occupy_cpu();
+    if (err) {
+        printf("proc occuy cpu fail\n");
+        exit(1);
+    }
+    sleep(3);
+
+    err = proc_release_cpu();
+    if (err) {
+        printf("proc release cpu fail\n");
+        exit(1);
+    }
+    exit(0);
+}
+
+static void run_out_cpus(int free_cpus)
+{
+    int err;
+    for (int i = 0; i < free_cpus; i++) {
+        err = inc_proc_group_cpus();
+        if (err) {
+            printf("inc_proc_group_cpus() fail in %d\n", i);
+            exit(1);
+        }
+        int cpus = proc_group_cpus();
+        if (cpus != i + 2) {
+            printf("wrong cpu number %d, should be %d in acquire\n", cpus,
+                   i + 2);
+            exit(1);
+        }
+    }
+
+    err = inc_proc_group_cpus();
+    if (err == 0) {
+        printf("inc_proc_group_cpus() inc cpus when there is no free cpu\n");
+        exit(1);
+    }
+    int cpus = proc_group_cpus();
+    if (cpus != free_cpus + 1) {
+        printf("wrong cpu number %d, should be %d in end\n", cpus,
+               free_cpus + 1);
+        exit(1);
+    }
+}
+
+static void run_out_cpu_flex_leave_fast(int free_cpus)
+{
+    int err = create_proc_group();
+    if (err == -1) {
+        printf("create proc group fail\n");
+        exit(1);
+    }
+    free_cpus--;
+
+    for (int i = 0; i < free_cpus; i++) {
+        int err = inc_proc_group_cpus_flex();
+        if (err) {
+            printf("inc_proc_group_cpus_flex() fail in %d\n", i);
+            exit(1);
+        }
+    }
+}
+
+// what if we flex allocate all cpus then exit group?
+// test whether cpu handle need_cpu_message from group that has been freed
+// correctly
+void leave_pg_fast(char *s)
+{
+    int free_cpus = proc_group_cpus() - 1;
+
+    int pid = fork();
+    if (pid < 0) {
+        printf("%s: fork failed\n", s);
+        exit(1);
+    }
+    if (pid == 0) {
+        // fast ret, some cpus haven't add to the group when free group
+        run_out_cpu_flex_leave_fast(free_cpus);
+        exit(0);
+    }
+
+    wait_children(s, 1);
+    sleep(5); // give some time for cpus to recieve message
+    int cpus = proc_group_cpus();
+    if (cpus != free_cpus + 1) {
+        printf("wrong cpu number %d, should be %d when fast leave finished\n",
+               cpus, free_cpus + 1);
+        exit(1);
+    }
+
+    // run out all cpus to check free_cpus has right value
+    int err = create_proc_group();
+    if (err == -1) {
+        printf("create proc group fail\n");
+        exit(1);
+    }
+
+    pid = fork();
+    if (pid < 0) {
+        printf("%s: fork failed\n", s);
+        exit(1);
+    }
+    if (pid == 0) {
+        run_out_cpus(free_cpus - 1);
+        exit(0);
+    }
+
+    if (wait_children(s, 1)) {
+        exit(1);
+    }
+    enter_proc_group(0);
+    sleep(5); // give some time for cpus to leave group
+    cpus = proc_group_cpus();
+    if (cpus != free_cpus + 1) {
+        printf("wrong cpu number %d, should be %d in end\n", cpus,
+               free_cpus + 1);
+        exit(1);
+    }
+    exit(0);
+}
+
+static void run_out_cpus_flex(int free_cpus)
+{
+    int err;
+    for (int i = 0; i < free_cpus; i++) {
+        err = inc_proc_group_cpus_flex();
+        if (err) {
+            printf("inc_proc_group_cpus_flex() fail in %d\n", i);
+            exit(1);
+        }
+        int cpus = proc_group_cpus();
+        if (cpus == i + 2) {
+            // inc cpu immediately, may be wrong if occur too many times,
+            // print to draw attention
+            printf("inc_proc_group_cpus_flex() inc cpu immediately in %d\n", i);
+        }
+        for (int w = 0; w < 5; w++) {
+            if (proc_group_cpus() != i + 2) {
+                sleep(1);
+            } else {
+                break;
+            }
+        }
+        cpus = proc_group_cpus();
+        if (cpus != i + 2) {
+            printf("wrong cpu number %d, should be %d in acquire\n", cpus,
+                   i + 2);
+            exit(1);
+        }
+    }
+
+    err = inc_proc_group_cpus_flex();
+    if (err == 0) {
+        printf(
+            "inc_proc_group_cpus_flex() inc cpus when there is no free cpu\n");
+        exit(1);
+    }
+    int cpus = proc_group_cpus();
+    if (cpus != free_cpus + 1) {
+        printf("wrong cpu number %d, should be %d in end\n", cpus,
+               free_cpus + 1);
+        exit(1);
+    }
+}
+
+static void run_out_cpus_flex_con(int free_cpus)
+{
+    int err;
+    for (int i = 0; i < free_cpus; i++) {
+        err = inc_proc_group_cpus_flex();
+        if (err) {
+            printf("inc_proc_group_cpus_flex() fail in %d\n", i);
+            exit(1);
+        }
+    }
+    for (int w = 0; w < 5; w++) {
+        if (proc_group_cpus() != free_cpus + 1) {
+            sleep(1);
+        } else {
+            break;
+        }
+    }
+    int cpus = proc_group_cpus();
+    if (cpus != free_cpus + 1) {
+        printf("wrong cpu number %d, should be %d in acquire\n", cpus,
+               free_cpus + 1);
+        exit(1);
+    }
+
+    err = inc_proc_group_cpus_flex();
+    if (err == 0) {
+        printf(
+            "inc_proc_group_cpus_flex() inc cpus when there is no free cpu\n");
+        exit(1);
+    }
+    cpus = proc_group_cpus();
+    if (cpus != free_cpus + 1) {
+        printf("wrong cpu number %d, should be %d in end\n", cpus,
+               free_cpus + 1);
+        exit(1);
+    }
+}
+
+void do_inc_cpus_flex(char *s, void (*runout)(int))
+{
+    int free_cpus = proc_group_cpus() - 1;
+
+    int err = create_proc_group();
+    if (err == -1) {
+        printf("create proc group fail\n");
+        exit(1);
+    }
+
+    int pid = fork();
+    if (pid < 0) {
+        printf("%s: fork failed\n", s);
+        exit(1);
+    }
+    if (pid == 0) {
+        runout(free_cpus - 1);
+        exit(0);
+    }
+
+    if (wait_children(s, 1)) {
+        exit(1);
+    }
+    enter_proc_group(0);
+    sleep(5); // give some time for cpus to leave group
+    int cpus = proc_group_cpus();
+    if (cpus != free_cpus + 1) {
+        printf("wrong cpu number %d, should be %d in end\n", cpus,
+               free_cpus + 1);
+        exit(1);
+    }
+    exit(0);
+}
+
+void inc_cpus_flex(char *s) { do_inc_cpus_flex(s, run_out_cpus_flex); }
+
+void inc_cpus_flex_con(char *s) { do_inc_cpus_flex(s, run_out_cpus_flex_con); }
+
+static void do_inc_cpus(char *s)
+{
+    int free_cpus = proc_group_cpus() - 1;
+
+    int err = create_proc_group();
+    if (err == -1) {
+        printf("create proc group fail\n");
+        exit(1);
+    }
+
+    int pid = fork();
+    if (pid < 0) {
+        printf("%s: fork failed\n", s);
+        exit(1);
+    }
+    if (pid == 0) {
+        run_out_cpus(free_cpus - 1);
+        exit(0);
+    }
+
+    if (wait_children(s, 1)) {
+        exit(1);
+    }
+    enter_proc_group(0);
+    sleep(5); // give some time for cpus to leave group
+    int cpus = proc_group_cpus();
+    if (cpus != free_cpus + 1) {
+        printf("wrong cpu number %d, should be %d in end\n", cpus,
+               free_cpus + 1);
+        exit(1);
+    }
+    exit(0);
+}
+
+// run out all free cpus, then quit the group and check wheter cpus leave the
+// empty group. test multiple times to ensure every cpu in right condition.
+void inc_cpus(char *s) { do_test_n_times(s, do_inc_cpus, 5); }
+
+// run out free cpus then dec them all.
+// check wheter they come back to default group.
+void dec_cpus(char *s)
+{
+    int free_cpus = proc_group_cpus() - 1;
+    int group_free_cpus = free_cpus - 1;
+    int pp_start[2], pp_dec_fin[2], n;
+    if (pipe(pp_start)) {
+        printf("pipe() failed\n");
+        exit(1);
+    }
+    if (pipe(pp_dec_fin)) {
+        printf("pipe() failed\n");
+        exit(1);
+    }
+
+    int pid = fork();
+    if (pid < 0) {
+        printf("%s: fork failed\n", s);
+    }
+    if (pid == 0) {
+        // check fin dec all
+        read(pp_dec_fin[0], &n, 1);
+        int cpus = proc_group_cpus();
+        if (cpus != group_free_cpus + 1) {
+            printf("default group don't get all cpus, get %d cpus\n", cpus);
+            exit(1);
+        }
+        exit(0);
+    }
+
+    int pgroup_id = create_proc_group();
+    if (pgroup_id == -1) {
+        printf("create proc group fail\n");
+        exit(1);
+    } else if (pgroup_id != 1) {
+        printf("proc group's id != 1\n");
+        exit(1);
+    }
+
+    pid = fork();
+    if (pid < 0) {
+        printf("%s: fork failed\n", s);
+    }
+    if (pid == 0) {
+        // run out cpus
+        run_out_cpus(group_free_cpus);
+        write(pp_start[1], &n, 1);
+        exit(0);
+    }
+
+    read(pp_start[0], &n, 1);
+    for (int i = 0; i < group_free_cpus; i++) {
+        int err = dec_proc_group_cpus();
+        if (err) {
+            printf("dec proc cpus fail in %d\n", i);
+            exit(1);
+        }
+    }
+    int err = dec_proc_group_cpus();
+    if (err == 0) {
+        printf("dec proc cpus success when there is only 1 cpu\n");
+        exit(1);
+    }
+    write(pp_dec_fin[1], &n, 1);
+
+    int xs = wait_children(s, 2);
+    close(pp_start[0]);
+    close(pp_start[1]);
+    close(pp_dec_fin[0]);
+    close(pp_dec_fin[1]);
+    exit(xs);
+}
+
+// dose create_proc_group() refuse to leave group when there are still some proc
+// but only 1 cpu?
+void leave_pg(char *s)
+{
+    int err = create_proc_group();
+    if (err == -1) {
+        printf("create proc group fail\n");
+        exit(1);
+    }
+
+    int pp_end[2];
+    if (pipe(pp_end) < 0) {
+        printf("pipe() failed\n");
+        exit(1);
+    }
+    int pid = fork();
+    if (pid < 0) {
+        printf("%s: fork1 failed\n", s);
+        exit(1);
+    }
+    if (pid == 0) {
+        read(pp_end[0], &err, 1);
+        exit(0);
+    }
+
+    for (int i = 0; i < 20; i++) {
+        err = create_proc_group();
+        if (err != -1) {
+            printf("create_proc_group claim to create a group\n");
+            exit(1);
+        }
+    }
+    write(pp_end[1], &err, 1);
+    wait_children(s, 1);
+    close(pp_end[0]);
+    close(pp_end[1]);
+    for (int i = 0; i < 20; i++) {
+        err = create_proc_group();
+        if (err == -1) {
+            printf("create proc group fail in %d\n", i);
+            exit(1);
+        }
+    }
+    if (err == -1) {
+        printf("create proc group fail\n");
+        exit(1);
+    }
+}
+
+// dose create_proc_group() clean group when the last cpu leave?
+void create_pg(char *s)
+{
+    int cpus = proc_group_cpus();
+    int child_count = cpus - 2;
+    printf("we got %d cpus, start 1 main process, %d child process\n", cpus,
+           child_count);
+
+    int pid = 1;
+    for (int i = 0; i < child_count; i++) {
+        pid = fork();
+        if (pid < 0) {
+            printf("%s: fork1 failed\n", s);
+            exit(1);
+        } else if (pid == 0) {
+            break;
+        }
+    }
+
+    for (int i = 0; i < 1000; i++) {
+        int err = create_proc_group();
+        if (err == -1) {
+            printf("create %d proc group fail cpus\n", i);
+            exit(1);
+        }
+    }
+
+    if (pid == 0) {
+        exit(0);
+    } else {
+        exit(wait_children(s, child_count));
+    }
+}
+
+// dose enter_proc_group() refuse to enter a ridiculous proc group?
+void enter_wrong_pg(char *s)
+{
+    int id[10] = { 100,     101,     102, 103,  1 << 10,
+                   1 << 11, 1 << 12, -1,  -100, -(1 << 10) };
+    for (int i = 0; i < LEN(id, int); i++) {
+        int err = enter_proc_group(id[i]);
+        if (err == 0) {
+            printf("enter_proc_group() success to enter %d proc group\n", i);
+            exit(1);
+        }
+    }
+    exit(0);
+}
+
+static void do_enter_pg(char *s)
+{
+    int pp_start[2], pp_end[2], n;
+    if (pipe(pp_start) < 0) {
+        printf("pipe() failed\n");
+        exit(1);
+    }
+    if (pipe(pp_end) < 0) {
+        printf("pipe() failed\n");
+        exit(1);
+    }
+
+    int pid = fork();
+    if (pid < 0) {
+        printf("%s: fork failed\n", s);
+        exit(1);
+    }
+    if (pid == 0) {
+        int pgid = create_proc_group();
+        if (pgid < 0) {
+            write(pp_start[1], &n, 1);
+            printf("create proc group fail\n");
+            exit(1);
+        } else if (pgid != 1) {
+            write(pp_start[1], &n, 1);
+            printf("proc group's id != 1\n");
+            exit(1);
+        }
+        write(pp_start[1], &n, 1);
+        read(pp_end[0], &n, 1);
+        exit(0);
+    }
+
+    pid = fork();
+    if (pid < 0) {
+        printf("%s: fork2 failed\n", s);
+        exit(1);
+    }
+    if (pid == 0) {
+        read(pp_start[0], &n, 1);
+        const int child_count = 10;
+        for (int i = 0; i < child_count; i++) {
+            int pid1 = fork();
+            if (pid1 < 0) {
+                printf("%s: fork1 failed\n", s);
+                exit(1);
+            }
+            if (pid1 == 0) {
+                int err = enter_proc_group(1);
+                if (err) {
+                    printf("X%d", i);
+                    exit(1);
+                }
+                sleep(3); // stay for a while
+                exit(0);
+            }
+        }
+        int err = enter_proc_group(1);
+        if (err) {
+            write(pp_end[1], &n, 1);
+            printf("enter proc group fail\n");
+            exit(1);
+        }
+        write(pp_end[1], &n, 1);
+        sleep(5); // wait first proc group proc zombie
+        int xstate = wait_children(s, child_count);
+        exit(xstate);
+    }
+
+    int r = wait_children(s, 2);
+    close(pp_start[0]);
+    close(pp_start[1]);
+    close(pp_end[0]);
+    close(pp_end[1]);
+    exit(r);
+}
+
+// dose enter_proc_group() clean up the group when the last cpu leave group?
+// test multiple times to ensure every group been freed correctly.
+void enter_pg(char *s) { do_test_n_times(s, do_enter_pg, 9); }
 
 // what if you pass ridiculous pointers to system calls
 // that read user memory with copyin?
@@ -421,7 +1030,7 @@ void exitiputtest(char *s)
 //      for(i = 0; i < 10000; i++)
 //        yield();
 //    }
-void _openiputtest(char *s)
+void openiputtest(char *s)
 {
     int pid, xstatus;
 
@@ -442,7 +1051,7 @@ void _openiputtest(char *s)
         }
         exit(0);
     }
-    // sleep(1);
+    sleep(1);
     if (unlink("oidir") != 0) {
         printf("%s: unlink failed\n", s);
         exit(1);
@@ -890,7 +1499,7 @@ void forkfork(char *s)
     }
 }
 
-void _forkforkfork(char *s)
+void forkforkfork(char *s)
 {
     unlink("stopforking");
 
@@ -913,10 +1522,10 @@ void _forkforkfork(char *s)
         exit(0);
     }
 
-    // sleep(20); // two seconds
+    sleep(20); // two seconds
     close(open("stopforking", O_CREATE | O_RDWR));
     wait(0);
-    // sleep(10); // one second
+    sleep(10); // one second
 }
 
 // regression test. does reparent() violate the parent-then-child
@@ -2061,7 +2670,7 @@ void kernmem(char *s)
 
 // if we run the system out of memory, does it clean up the last
 // failed allocation?
-void _sbrkfail(char *s)
+void sbrkfail(char *s)
 {
     enum { BIG = 100 * 1024 * 1024 };
     int i, xstatus;
@@ -2082,7 +2691,7 @@ void _sbrkfail(char *s)
             write(fds[1], "x", 1);
             // sit around until killed
             for (;;)
-                ; // sleep(1000);
+                sleep(1000);
         }
         if (pids[i] != -1)
             read(fds[0], &scratch, 1);
@@ -2286,13 +2895,13 @@ void argptest(char *s)
     read(fd, sbrk(0) - 1, -1);
     close(fd);
 }
-
-unsigned long randstate = 1;
-unsigned int rand()
-{
-    randstate = randstate * 1664525 + 1013904223;
-    return randstate;
-}
+//
+// unsigned long randstate = 1;
+// unsigned int rand()
+// {
+//     randstate = randstate * 1664525 + 1013904223;
+//     return randstate;
+// }
 
 // check that there's an invalid page beneath
 // the user stack, to catch stack overflow.
@@ -2570,6 +3179,16 @@ struct test {
     void (*f)(char *);
     char *s;
 } tests[] = {
+    { exclusive_occupy, "exclusive_occupy" }, 
+    { leave_pg_fast, "leave_pg_fast" }, 
+    { dec_cpus, "dec_cpus" }, 
+    { inc_cpus_flex, "inc_cpus_flex" }, 
+    { inc_cpus_flex_con, "inc_cpus_flex_con" }, 
+    { inc_cpus, "inc_cpus" }, 
+    { leave_pg, "leave_pg" }, 
+    { create_pg, "create_pg" }, 
+    { enter_wrong_pg, "enter_wrong_pg" }, 
+    { enter_pg, "enter_pg" }, 
     { execout, "execout" },
     { copyin, "copyin" },
     { copyout, "copyout" },
@@ -2587,7 +3206,7 @@ struct test {
     { reparent, "reparent" },
     { twochildren, "twochildren" },
     { forkfork, "forkfork" },
-    /* { _forkforkfork, "forkforkfork" }, */
+    { forkforkfork, "forkforkfork" }, 
     { argptest, "argptest" },
     { createdelete, "createdelete" },
     { linkunlink, "linkunlink" },
@@ -2604,7 +3223,7 @@ struct test {
     { sbrkbasic, "sbrkbasic" },
     { sbrkmuch, "sbrkmuch" },
     { kernmem, "kernmem" },
-    /* { _sbrkfail, "sbrkfail" }, */
+    { sbrkfail, "sbrkfail" }, 
     { sbrkarg, "sbrkarg" },
     { validatetest, "validatetest" },
     { stacktest, "stacktest" },
@@ -2612,7 +3231,7 @@ struct test {
     { writetest, "writetest" },
     { writebig, "writebig" },
     { createtest, "createtest" },
-    /* { _openiputtest, "openiput" }, */
+    { openiputtest, "openiput" },
     { exitiputtest, "exitiput" },
     { iputtest, "iput" },
     { mem, "mem" },
@@ -2627,7 +3246,12 @@ struct test {
     { forktest, "forktest" },
     { bigdir, "bigdir" }, // slow
     { 0, 0 },
+}, temp_tests[]={
+    { create_pg, "create_pg" }, 
+    { 0, 0 },
 };
+
+struct test *get_tests(void) { return tests; }
 
 int do_test(char *justone)
 {
@@ -2635,7 +3259,7 @@ int do_test(char *justone)
     int free0 = countfree();
     int free1 = 0;
     int fail = 0;
-    for (struct test *t = tests; t->s != 0; t++) {
+    for (struct test *t = get_tests(); t->s != 0; t++) {
         if ((justone == 0) || strcmp(t->s, justone) == 0) {
             if (!run(t->f, t->s))
                 fail = 1;
@@ -2657,29 +3281,62 @@ int do_test(char *justone)
 int main(int argc, char *argv[])
 {
     int continuous = 0;
+    int times = 0;
     char *justone = 0;
 
     if (argc == 2 && strcmp(argv[1], "-c") == 0) {
         continuous = 1;
-    } else if (argc == 2 && strcmp(argv[1], "-C") == 0) {
+    } else if (argc == 3 && strcmp(argv[1], "-C") == 0) {
         continuous = 2;
+        char c = argv[2][0];
+        if (c >= '1' && c <= '9') {
+            times = c - '0';
+        } else {
+            printf("Usage: usertests -C [0-9]");
+            exit(0);
+        }
     } else if (argc == 2 && argv[1][0] != '-') {
         justone = argv[1];
     } else if (argc > 1) {
-        printf("Usage: usertests [-c] [testname]\n");
+        printf("Usage: usertests [-c] [testname]\n    usertests -C [0-9]");
         exit(1);
     }
 
-    if (continuous) {
-        printf("continuous usertests starting\n");
+    int pgroup_id = get_proc_group_id();
+    if (pgroup_id != 0) {
+        printf("please run usertests in default process group\n");
+        exit(1);
+    }
+    int cpus = proc_group_cpus();
+    if (cpus < 2) {
+        printf("usertests need at least 2 cpus to run correctly, all test "
+               "about process group will fail\n");
+    }
+
+    int retval = 0;
+    if (continuous == 1) {
+        printf("continuous usertests starting:\n");
+        uint64 n = 0;
         while (1) {
             int err = do_test(justone);
             if (err) {
                 exit(1);
             }
+            n++;
+            printf("ALL TESTS PASSED: %d USERTESTS SO FAR\n", n);
         }
+    } else if (continuous == 2) {
+        for (int i = 0; i < times; i++) {
+            printf("usertests starting %d/%d:\n", i + 1, times);
+            int err = do_test(justone);
+            if (err) {
+                exit(1);
+            }
+        }
+        printf("ALL TESTS PASSED: %d USERTESTS TOTAL\n", times);
+    } else {
+        retval = do_test(justone);
     }
 
-    int r = do_test(justone);
-    exit(r);
+    return retval;
 }

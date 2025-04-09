@@ -8,6 +8,7 @@
 #include "fs/param.h"
 #include "fs/stat.h"
 #include "lock/spin_lock.h"
+#include "process/proc_group.h"
 #include "process/process_loader.h"
 #include "riscv/vm_system.h"
 #include "scheduler/sleep.h"
@@ -39,6 +40,7 @@ void process_init(void)
         proc_set[i].pid = -1;
         proc_set[i].status = UNUSED;
         init_spin_lock(&proc_set[i].lock);
+        proc_set[i].pgroup_id = -1;
     }
 }
 
@@ -184,7 +186,13 @@ static struct process *alloc_process(void)
         release_spin_lock(&proc->lock);
 
         int err = init_user_process(proc);
-        return err ? NULL : proc;
+        if (err) {
+            acquire_spin_lock(&proc->lock);
+            proc->status = UNUSED;
+            release_spin_lock(&proc->lock);
+            return NULL;
+        }
+        return proc;
     }
 
     return NULL;
@@ -216,8 +224,9 @@ void setup_init_proc(void)
     proc->mem_start = mem_end;
     proc->mem_brk = mem_end;
     proc->mem_end = mem_end;
-
     proc->cwd = namei("/");
+
+    setup_default_proc_group(proc);
 }
 
 static void free_user_memory(page_table pgtable, uint64 mem_end)
@@ -256,6 +265,8 @@ static void free_process(struct process *proc)
     proc->xstatus = 0;
     proc->chain = NULL;
     proc->parent = NULL;
+
+    proc->pgroup_id = -1;
 }
 
 uint64 fork(struct process *proc)
@@ -303,6 +314,12 @@ uint64 fork(struct process *proc)
     acquire_spin_lock(&fork_proc->lock);
     fork_proc->status = RUNABLE;
     release_spin_lock(&fork_proc->lock);
+
+    // add to parent proc group
+    err = forkproc_into_pgroup(proc->pgroup_id, fork_proc);
+    if (err) {
+        PANIC_FN("fail to add child to parent's proc group");
+    }
 
     return pid;
 }
@@ -488,6 +505,9 @@ static void wake_up_parent(struct process *parent)
 
 __attribute__((noreturn)) uint64 exit(struct process *proc, uint64 xstatus)
 {
+    if (proc != my_proc()) {
+        PANIC_FN("exit on other proc");
+    }
     if (proc->pid == 0) {
         PANIC_FN("init proc exit");
     }
@@ -515,6 +535,11 @@ __attribute__((noreturn)) uint64 exit(struct process *proc, uint64 xstatus)
     release_spin_lock(&proc_set[0].lock);
     release_spin_lock(&proc->lock);
 
+    // we will exit proc group, close intr to avoid proc lost
+    push_introff();
+
+    exit_pgroup();
+
     // ZOMBIE current proc
     acquire_spin_lock(&parent->lock);
     acquire_spin_lock(&proc->lock);
@@ -539,6 +564,7 @@ __attribute__((noreturn)) uint64 exit(struct process *proc, uint64 xstatus)
     proc->status = ZOMBIE;
     proc->xstatus = xstatus;
     proc->chain = NULL;
+    pop_introff();
 
     // proc->status has been setted
     // swtch to scheduler
@@ -636,6 +662,21 @@ uint64 kill(pid_t pid)
     target->killed = 1;
     release_spin_lock(&target->lock);
 
+    return 0;
+}
+
+uint64 proc_sys_sleep(int sleep_ticks)
+{
+    acquire(&tick_lock);
+    uint start_ticks = tick_count;
+    while (tick_count - start_ticks < sleep_ticks) {
+        if (myproc()->killed) {
+            release(&tick_lock);
+            return -1;
+        }
+        sleep(&tick_lock, &tick_count);
+    }
+    release(&tick_lock);
     return 0;
 }
 

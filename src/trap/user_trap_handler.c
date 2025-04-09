@@ -2,6 +2,7 @@
 #include "config/basic_types.h"
 #include "cpus.h"
 #include "lock/spin_lock.h"
+#include "process/proc_group.h"
 #include "process/process.h"
 #include "riscv/regs.h"
 #include "riscv/trap_handle.h"
@@ -30,14 +31,19 @@ void user_trap_handler(void)
     } else if (scause & SCAUSE_INTERRPUT_MASK) {
         intr_handler(scause);
     } else {
-        kprintf("unexpect exception from user:\n scause: %p\n stval: %p\n "
-                "spec: %p\n",
-                scause, r_stval(), r_sepc());
+        kprintf("unexpect exception from user:\n    scause: %p stval: %p\n    "
+                "spec: %p pid: %d\n",
+                scause, r_stval(), r_sepc(), proc->pid);
         killed = 1;
     }
 
     if (killed || proc->killed) {
         exit(proc, -1);
+    }
+
+    if (panicked) {
+        while (1) {
+        }
     }
 
     user_trap_ret();
@@ -54,7 +60,11 @@ void user_trap_ret(void)
     sstatus |= XSTATUS_SPIE;
     sstatus &= (~XSTATUS_SPP);
     w_sstatus(sstatus);
-    w_sie(XIE_SEIE | XIE_SSIE); // don't need it in fact
+    if (is_exclusive_occupy(proc)) {
+        enable_soft_intr(); // exclusive occupy proc, ignore device intr
+    } else {
+        enable_soft_n_external_intr(); // common proc, prepare intr
+    }
     w_sepc(proc->proc_trap_frame->sepc);
 
     // prepare for next user trap

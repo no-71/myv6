@@ -4,6 +4,8 @@
 #include "scheduler/sleep.h"
 #include "trap/introff.h"
 
+// require 2^64 % UART_OUTPUT_SIZE == 0, 2^64 % UART_INPUT_SIZE == 0, so that we
+// can be safe when uint64 overflow
 #define UART_OUTPUT_SIZE 16
 #define UART_INPUT_SIZE 64
 
@@ -58,6 +60,8 @@ static int uart_queue_full(uint64 beg, uint64 end, uint64 size)
     return end - beg == size;
 }
 
+int uart_input_not_empty(void) { return uart_iq_beg != uart_iq_end; }
+
 static int uart_putc_output_queue(void)
 {
     if ((READ_UART_REG(LSR) & LSR_THR_READY) &&
@@ -95,14 +99,18 @@ int uart_getc_input_queue(void)
 
         case GET_LINE:
             c = '\n';
-        default:
-            uart_input_queue[uart_iq_end % UART_INPUT_SIZE] = c;
-            if (uart_queue_full(uart_iq_beg, uart_iq_end, UART_INPUT_SIZE)) {
-                uart_iq_beg++;
-            }
-            uart_iq_end++;
-            return 0;
+            break;
+
+        case GET_EOF:
+            break;
         }
+
+        uart_input_queue[uart_iq_end % UART_INPUT_SIZE] = c;
+        if (uart_queue_full(uart_iq_beg, uart_iq_end, UART_INPUT_SIZE)) {
+            uart_iq_beg++;
+        }
+        uart_iq_end++;
+        return 0;
     }
     return -1;
 }

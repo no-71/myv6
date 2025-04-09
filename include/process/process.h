@@ -6,6 +6,8 @@
 #include "fs/fs.h"
 #include "fs/param.h"
 #include "lock/spin_lock.h"
+#include "util/list.h"
+#include "util/list_include.h"
 #include "vm/vm.h"
 
 struct context {
@@ -74,13 +76,13 @@ struct trap_frame {
 enum { UNUSED, USED, RUNABLE, RUNNING, SLEEP, ZOMBIE };
 
 struct process {
+    struct spin_lock lock;
     pid_t pid;
     int status;
     int killed;
     int xstatus;
     void *chain;
     struct process *parent;
-    struct spin_lock lock;
 
     // private, don't need lock
     uint64 ustack;
@@ -94,6 +96,12 @@ struct process {
     uint64 kstack;
     struct trap_frame *proc_trap_frame;
     struct context proc_context;
+
+    // protected by correspond proc_group.lock
+    /* pgroup_id is protected by correspond proc_group.lock in fact, but only we
+     * can access it, so we can read it without lock, but modify it with lock */
+    int pgroup_id;
+    struct list_head pgroup_list;
 };
 
 void process_init(void);
@@ -104,6 +112,7 @@ uint64 exec(struct process *proc, char *file, int argc, char *argv[],
 __attribute__((noreturn)) uint64 exit(struct process *proc, uint64 xstatus);
 uint64 wait(struct process *proc, uint64 int_uva);
 uint64 kill(pid_t pid);
+uint64 proc_sys_sleep(int sleep_ticks);
 uint64 count_proc_num(void);
 
 extern struct process proc_set[STATIC_PROC_NUM];

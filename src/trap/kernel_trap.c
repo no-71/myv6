@@ -1,4 +1,5 @@
 #include "trap/kernel_trap.h"
+#include "cpus.h"
 #include "riscv/regs.h"
 #include "riscv/trap_handle.h"
 #include "trap/intr_handler.h"
@@ -7,6 +8,10 @@
 
 void kernel_trap_init_hart(void)
 {
+    if (cpu_id() == 0) {
+        intr_init();
+    }
+
     w_stvec((uint64)kernel_trap_entry);
     w_sie(XIE_SSIE | XIE_SEIE);
 }

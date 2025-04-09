@@ -2,6 +2,7 @@
 #include "cpus.h"
 #include "driver/uart.h"
 #include "driver/virtio.h"
+#include "fs/defs.h"
 #include "lock/spin_lock.h"
 #include "riscv/plic.h"
 #include "riscv/regs.h"
@@ -9,6 +10,16 @@
 #include "scheduler/swtch.h"
 #include "trap/introff.h"
 #include "util/kprint.h"
+
+struct spin_lock tick_lock;
+__attribute__((aligned(8))) uint64 tick_count;
+
+void intr_init(void) { init_spin_lock(&tick_lock); }
+
+uint64 get_ticks(void)
+{
+    return __atomic_load_n(&tick_count, __ATOMIC_RELAXED);
+}
 
 void switch_to_scheduler(void)
 {
@@ -60,7 +71,14 @@ void intr_handler(uint64 scause)
     } else if (scause == SCAUSE_SSI) {
         w_sip(r_sip() & (~XIP_SSIP));
 
-        if (my_proc() == NULL) {
+        if (cpu_id() == 0) {
+            acquire_spin_lock(&tick_lock);
+            tick_count++;
+            wakeup(&tick_count);
+            release_spin_lock(&tick_lock);
+        }
+
+        if (my_proc() == NULL || is_exclusive_occupy(my_proc())) {
             return;
         }
         yield(RUNABLE);

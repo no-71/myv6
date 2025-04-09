@@ -1,16 +1,16 @@
 .text
 
-.global intokernel
-intokernel:
+.global kernelbreak
+kernelbreak:
     li a7, 0
     ecall
     ret
 
-# .global puts
-# puts:
-#     li a7, 1
-#     ecall
-#     ret
+.global sleep
+sleep:
+    li a7, 1
+    ecall
+    ret
 
 .global sbrk
 sbrk:
@@ -60,11 +60,11 @@ brk:
     ecall
     ret
 
-# .global getc
-# getc:
-#     li a7, 10
-#     ecall
-#     ret
+.global time
+time:
+    li a7, 10
+    ecall
+    ret
 
 .global dup
 dup:
@@ -138,9 +138,68 @@ pipe:
     ecall
     ret
 
+.global get_proc_group_id
+get_proc_group_id:
+    li a7, 100
+    ecall
+    ret
+
+.global create_proc_group
+create_proc_group:
+    li a7, 101
+    ecall
+    ret
+
+.global enter_proc_group
+enter_proc_group:
+    li a7, 102
+    ecall
+    ret
+
+.global proc_group_cpus
+proc_group_cpus:
+    li a7, 103
+    ecall
+    ret
+
+.global inc_proc_group_cpus
+inc_proc_group_cpus:
+    li a7, 104
+    ecall
+    ret
+
+.global dec_proc_group_cpus
+dec_proc_group_cpus:
+    li a7, 105
+    ecall
+    ret
+
+.global proc_group_procs_count
+proc_group_procs_count:
+    li a7, 106
+    ecall
+    ret
+
+.global proc_occupy_cpu
+proc_occupy_cpu:
+    li a7, 107
+    ecall
+    ret
+
+.global proc_release_cpu
+proc_release_cpu:
+    li a7, 108
+    ecall
+    ret
+
+.global inc_proc_group_cpus_flex
+inc_proc_group_cpus_flex:
+    li a7, 109
+    ecall
+    ret
+
 .global count_proc_num
 count_proc_num:
     li a7, 1000
     ecall
     ret
-

@@ -37,6 +37,7 @@
 #define LSR_THR_READY (1 << 5)
 
 void uartinit(void);
+int uart_input_not_empty(void);
 void uart_polling_putc(char c);
 void uart_write(const char *s, size_t len);
 void uart_putc(char c);

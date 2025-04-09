@@ -32,7 +32,7 @@ int do_rand(unsigned long *ctx)
 
 unsigned long rand_next = 1;
 
-int rand(void) { return (do_rand(&rand_next)); }
+int _rand(void) { return (do_rand(&rand_next)); }
 
 void go(int which_child)
 {
@@ -52,7 +52,7 @@ void go(int which_child)
         iters++;
         if ((iters % 500) == 0)
             write(1, which_child ? "B" : "A", 1);
-        int what = rand() % 23;
+        int what = _rand() % 23;
         if (what == 1) {
             close(open("grindir/../a", O_CREATE | O_RDWR));
         } else if (what == 2) {

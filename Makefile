@@ -20,7 +20,7 @@ CFLAGS += $(addprefix -I,$(include_dir_head))
 CFLAGS += -fno-stack-protector
 CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
-DB_DEEPTH = -ggdb3
+DB_DEEPTH = -ggdb3 -Og
 ifdef alldb
     CDBFLAGS = $(DB_DEEPTH)
 endif
@@ -137,7 +137,7 @@ q: kernel_and_user
 	$(qemu) $(qemu_opts)
 
 db: CDBFLAGS = $(DB_DEEPTH)
-db: clean_except_fsimg kernel_and_user
+db: kernel_and_user
 	@echo ">>> qemu-gdb starts, run gdb-multiarch in other window\n"
 	$(qemu) $(qemu_opts) $(qemu_gdbopts)
 

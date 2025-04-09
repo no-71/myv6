@@ -105,8 +105,10 @@ void kprintf(const char *fmt, ...)
 
 __attribute__((noreturn)) void panic_2str(const char *s1, const char *s2)
 {
-    panicked = 1;
-    kprintf("panic: %s%s\n", s1, s2);
+    if (panicked == 0) {
+        panicked = 1;
+        kprintf("panic: %s%s\n", s1, s2);
+    }
     while (1) {
     }
 }

@@ -1,3 +1,5 @@
 .cache/
 out/
+mkfs/fs.img
+mkfs/mkfs
 compile_commands.json

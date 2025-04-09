@@ -2,6 +2,16 @@
 #include "include/config/basic_types.h"
 #include "ulib/sys_calls.h"
 
+static unsigned long _rand_seed = 1;
+
+void srand(unsigned int seed) { _rand_seed = seed; }
+
+uint rand(void)
+{
+    _rand_seed = _rand_seed * 1103515245 + 12345;
+    return (unsigned int)(_rand_seed >> 16) & 0x7FFF; // equal to % 32768
+}
+
 char *strcpy(char *s, const char *t)
 {
     char *os;
