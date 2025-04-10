@@ -532,9 +532,6 @@ void handle_cpu_acquire(void)
     acquire_spin_lock(&old_group->lock);
     if (pgroup_cpu_count_unsafe(old_group) == 1) {
         PANIC_FN("too many cpus been allocate");
-        // resend_cpu_message(m);
-        // release_spin_lock(&old_group->lock);
-        // return;
     }
     remove_my_cpu_from_pgroup(old_group, mycpu);
     release_spin_lock(&old_group->lock);

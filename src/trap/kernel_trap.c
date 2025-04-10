@@ -27,7 +27,6 @@ void kernel_trap_handler(void)
 
     uint64 scause = r_scause();
     if (scause & SCAUSE_INTERRPUT_MASK) {
-        // kprintf("kernel trap time intr\n");
         intr_handler(scause);
     } else {
         kprintf("unexpect exception from kernel:\n scause: %p\n stval: %p\n "

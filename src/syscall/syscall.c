@@ -1,14 +1,17 @@
 #include "syscall/syscall.h"
 #include "cpus.h"
 #include "fs/defs.h"
+#include "fs/param.h"
 #include "io/console/console.h"
 #include "process/proc_group.h"
 #include "process/process.h"
+#include "riscv/vm_system.h"
 #include "syscall/uvm.h"
 #include "trap/intr_handler.h"
 #include "trap/introff.h"
 #include "util/kprint.h"
 #include "util/string.h"
+#include "vm/kalloc.h"
 #include "vm/vm.h"
 
 typedef uint64 (*syscall_fn_t)(struct process *);
@@ -32,10 +35,10 @@ uint64 syscall_sbrk(struct process *proc)
 uint64 syscall_fork(struct process *proc) { return fork(proc); }
 
 static int copy_in_argv(struct process *proc, int *argc, uint64 argv_uva,
-                        char *argv[], char str_in_argv[][64])
+                        char *argv[], char str_in_argv[][ARGV_STR_LEN])
 {
     *argc = 0;
-    for (int i = 0; i < 7; i++) {
+    for (int i = 0; i < ARGVN; i++) {
         int err = copy_in(proc->proc_pgtable, argv_uva + sizeof(char *) * i,
                           &argv[i], sizeof(char *));
         if (err) {
@@ -47,13 +50,13 @@ static int copy_in_argv(struct process *proc, int *argc, uint64 argv_uva,
         }
     }
 
-    if (argv[6] != 0) {
+    if (argv[ARGVN - 1] != 0) {
         return -1;
     }
 
     for (int i = 0; i < *argc; i++) {
         int err = copy_in_str(proc->proc_pgtable, (uint64)argv[i],
-                              str_in_argv[i], 64);
+                              str_in_argv[i], ARGV_STR_LEN);
         if (err) {
             return -1;
         }
@@ -65,19 +68,32 @@ static int copy_in_argv(struct process *proc, int *argc, uint64 argv_uva,
 
 uint64 syscall_exec(struct process *proc)
 {
-    char file[64];
-    char str_in_argv[7][64];
-    char *argv[7];
-    memset(file, 0, sizeof(file));
-    memset(str_in_argv, 0, sizeof(str_in_argv));
-    memset(argv, 0, sizeof(argv));
+    int total_size = MAXPATH + ARGVN * ARGV_STR_LEN + sizeof(char *) * ARGVN;
+    if (total_size > PGSIZE) {
+        PANIC_FN("exec possible args are too big");
+    }
+
+    char *page = kalloc();
+    if (page == NULL) {
+        return -1;
+    }
+    // char file[MAXPATH];
+    // char str_in_argv[ARGVN][ARGV_STR_LEN];
+    // char *argv[ARGVN];
+    char *file = page;
+    char(*str_in_argv)[ARGV_STR_LEN] = (char(*)[ARGV_STR_LEN])(file + MAXPATH);
+    char **argv = (char **)(((char *)str_in_argv) + ARGVN * ARGV_STR_LEN);
+    // memset(file, 0, MAXPATH);
+    // memset(str_in_argv, 0, ARGVN * ARGV_STR_LEN);
+    // memset(argv, 0, sizeof(char *) * ARGVN);
+    memset(page, 0, total_size);
 
     uint64 file_pchar_uva = get_arg_n(proc->proc_trap_frame, 0);
     uint64 argv_uva = get_arg_n(proc->proc_trap_frame, 1);
 
-    int err =
-        copy_in_str(proc->proc_pgtable, file_pchar_uva, file, sizeof(file));
+    int err = copy_in_str(proc->proc_pgtable, file_pchar_uva, file, MAXPATH);
     if (err) {
+        kfree(page);
         return -1;
     }
 
@@ -87,12 +103,14 @@ uint64 syscall_exec(struct process *proc)
         int argc;
         int err = copy_in_argv(proc, &argc, argv_uva, argv, str_in_argv);
         if (err) {
+            kfree(page);
             return -1;
         }
 
         err = exec(proc, file, argc, argv, (char *)str_in_argv);
     }
 
+    kfree(page);
     return err ? -1 : proc->proc_trap_frame->a0;
 }
 

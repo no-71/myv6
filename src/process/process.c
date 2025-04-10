@@ -331,21 +331,7 @@ struct elf_in_kernel {
 } all_elf_in_kernel[64] = {
     (struct elf_in_kernel){ "init_code", init_code_binary,
                             &init_code_binary_size },
-    // (struct elf_in_kernel){ "usertest", usertest_binary,
-    //                         &usertest_binary_size },
-    // (struct elf_in_kernel){ "echo", echo_binary, &echo_binary_size }
 };
-
-// static struct elf_in_kernel *get_elf_in_kernel(char *name)
-// {
-//     for (int i = 0; all_elf_in_kernel[i].name; i++) {
-//         if (strcmp(name, all_elf_in_kernel[i].name) == 0) {
-//             return &all_elf_in_kernel[i];
-//         }
-//     }
-//
-//     return NULL;
-// }
 
 static void *alloc_page_copy_argv(int argc, char *argv[], char str_in_argv[])
 {
@@ -355,11 +341,11 @@ static void *alloc_page_copy_argv(int argc, char *argv[], char str_in_argv[])
     }
 
     uint64 str_start = sizeof(uint64) * (argc + 1);
-    memcpy(page + str_start, str_in_argv, 64 * argc);
+    memcpy(page + str_start, str_in_argv, ARGV_STR_LEN * argc);
 
     uint64 *argv0 = (uint64 *)page;
     for (int i = 0; i < argc; i++) {
-        argv0[i] = str_start + 64 * i;
+        argv0[i] = str_start + ARGV_STR_LEN * i;
     }
     argv0[argc] = 0;
 

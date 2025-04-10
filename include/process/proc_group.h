@@ -56,7 +56,6 @@ int get_pgroup_id(void);
 int pgroup_procs_count(void);
 int create_pgroup(void);
 int enter_pgroup(int pgroup_id);
-
 // for process manager to use
 int cpu_leave_pgroup_if_empty(void);
 void proc_move_to_tail(struct proc_group *pgroup, struct process *proc);
@@ -68,13 +67,13 @@ int pgroup_cpu_count(void);
 int inc_pgroup_cpus(void);
 int inc_proc_group_cpus_flex(void);
 int dec_pgroup_cpus(void);
-
 // for scheduler to use
 void handle_cpu_acquire(void);
 
+// procrss group syscall to make proc occupy
 int proc_occupy_cpu(void);
 int proc_release_cpu(void);
-
+// for others to know currnet condition
 int is_exclusive_occupy(struct process *proc);
 
 #endif

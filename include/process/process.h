@@ -10,6 +10,11 @@
 #include "util/list_include.h"
 #include "vm/vm.h"
 
+// (MAXPATH + ARGVN*ARGV_STR_LEN + sizeof(char*)*ARGVN) shall be smaller than
+// page size
+#define ARGVN 32
+#define ARGV_STR_LEN 64
+
 struct context {
     uint64 ra;
     uint64 sp;

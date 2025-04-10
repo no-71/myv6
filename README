@@ -1,7 +1,12 @@
-Tiny opertating system. It is a re-implementation of xv6.
+tinyos
+
+tinyos is a re-implementation of xv6. we add process group future in this tinyos, see user_space/ulib/sys_call.h to learn more.
 
 
 
 ## Third-party code
 
 - The filesystem module and some user space code use code from [xv6](https://github.com/mit-pdos/xv6-riscv) under the MIT license.
+
+- The Circular doubly linked list use code from [Linux Kernel Source (include/linux/list.h)](https://github.com/torvalds/linux/blob/master) under the GPL-2 license.
+

@@ -10,17 +10,6 @@
 #include "util/kprint.h"
 #include "util/list.h"
 
-// uint64 handle_proc[MAX_CPU_NUM];
-//
-// void handle_proc_count(void)
-// {
-//     handle_proc[cpu_id()]++;
-//     if (handle_proc[cpu_id()] % 1000 == 0) {
-//         kprintf("cpu %d has handled %d proc\n", cpu_id(),
-//                 (int)handle_proc[cpu_id()]);
-//     }
-// }
-
 static struct process *get_runnable_proc_with_lock(struct proc_group *pgroup)
 {
     struct process *proc;
@@ -84,3 +73,15 @@ void scheduler(void)
         }
     }
 }
+
+// debug funciton
+//
+// uint64 handle_proc[MAX_CPU_NUM];
+// void handle_proc_count(void)
+// {
+//     handle_proc[cpu_id()]++;
+//     if (handle_proc[cpu_id()] % 1000 == 0) {
+//         kprintf("cpu %d has handled %d proc\n", cpu_id(),
+//                 (int)handle_proc[cpu_id()]);
+//     }
+// }
