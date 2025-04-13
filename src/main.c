@@ -29,7 +29,7 @@ void main(void)
 
         console_init(); // uart, char io
         kprintf_init();
-        kprintf("tinyos starts booting\n");
+        kprintf("myv6 starts booting\n");
         kprintf("hart %d start\n", cpu_id());
 
         kalloc_init(); // mem alloc and kernel page table

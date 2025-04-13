@@ -2,6 +2,7 @@
 #define KVM_H_
 
 #include "vm/vm.h"
+
 void kvm_init(void);
 void kvm_init_hart(void);
 

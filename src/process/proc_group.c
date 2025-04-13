@@ -315,6 +315,10 @@ int create_pgroup(void)
 }
 
 // add current proc to group
+/*
+ * you can consider require two proc group lock(acquire lock with smaller group
+ * id first), then it won't cause CPU lost when proc leave the group and readd
+ */
 int enter_pgroup(int pgroup_id)
 {
     if (pgroup_id >= MAX_PROC_GROUP_NUM || pgroup_id < 0) {
@@ -465,9 +469,7 @@ int inc_proc_group_cpus_flex(void)
     if (err) {
         return -1;
     }
-    acquire_spin_lock(&pgroup->lock);
     send_cpu_message((struct cpu_message){ NEED_CPU_FLEX, pgroup });
-    release_spin_lock(&pgroup->lock);
     return 0;
 }
 

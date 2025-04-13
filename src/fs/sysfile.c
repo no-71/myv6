@@ -19,27 +19,25 @@
 #include "util/string.h"
 
 // Fetch the uint64 at addr from the current process.
-int
-fetchaddr(uint64 addr, uint64 *ip)
+int fetchaddr(uint64 addr, uint64 *ip)
 {
-  struct process *p = myproc();
-  if(addr >= p->mem_end || addr+sizeof(uint64) > p->mem_end)
-    return -1;
-  if(copyin(p->proc_pgtable, (char *)ip, addr, sizeof(*ip)) != 0)
-    return -1;
-  return 0;
+    struct process *p = myproc();
+    if (addr >= p->mem_end || addr + sizeof(uint64) > p->mem_end)
+        return -1;
+    if (copyin(p->proc_pgtable, (char *)ip, addr, sizeof(*ip)) != 0)
+        return -1;
+    return 0;
 }
 
 // Fetch the nul-terminated string at addr from the current process.
 // Returns length of string, not including nul, or -1 for error.
-int
-fetchstr(uint64 addr, char *buf, int max)
+int fetchstr(uint64 addr, char *buf, int max)
 {
-  struct process *p = myproc();
-  int err = copyinstr(p->proc_pgtable, buf, addr, max);
-  if(err < 0)
-    return err;
-  return strlen(buf);
+    struct process *p = myproc();
+    int err = copyinstr(p->proc_pgtable, buf, addr, max);
+    if (err < 0)
+        return err;
+    return strlen(buf);
 }
 
 static uint64 argraw(int n) { return get_arg_n(myproc()->proc_trap_frame, n); }
@@ -54,23 +52,21 @@ int argint(int n, int *ip)
 // Retrieve an argument as a pointer.
 // Doesn't check for legality, since
 // copyin/copyout will do that.
-int
-argaddr(int n, uint64 *ip)
+int argaddr(int n, uint64 *ip)
 {
-  *ip = argraw(n);
-  return 0;
+    *ip = argraw(n);
+    return 0;
 }
 
 // Fetch the nth word-sized system call argument as a null-terminated string.
 // Copies into buf, at most max.
 // Returns string length if OK (including nul), -1 if error.
-int
-argstr(int n, char *buf, int max)
+int argstr(int n, char *buf, int max)
 {
-  uint64 addr;
-  if(argaddr(n, &addr) < 0)
-    return -1;
-  return fetchstr(addr, buf, max);
+    uint64 addr;
+    if (argaddr(n, &addr) < 0)
+        return -1;
+    return fetchstr(addr, buf, max);
 }
 
 // Fetch the nth word-sized system call argument as a file descriptor

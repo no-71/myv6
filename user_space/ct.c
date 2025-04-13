@@ -6,7 +6,7 @@
 
 void kill_child(int *pids, int n)
 {
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n && pids[i] > 0; i++) {
         kill(pids[i]);
     }
 }
@@ -54,8 +54,9 @@ uint64 run(const char *s, uint64 (*test)(const char *, uint64, uint64),
     return ticks;
 }
 
-int test_once(int child_proc_n, uint64 (*test)(const char *, uint64, uint64),
-              uint64 iterations, uint64 test_limit)
+int test_once(int childprint, int child_proc_n,
+              uint64 (*test)(const char *, uint64, uint64), uint64 iterations,
+              uint64 test_limit)
 {
     int pp_start[2], pp_end[2], pp_time[2];
     uint64 n;
@@ -68,9 +69,16 @@ int test_once(int child_proc_n, uint64 (*test)(const char *, uint64, uint64),
     for (int i = 0; i < child_proc_n; i++) {
         int pid = pids[i] = fork();
         if (pid < 0) {
-            kill_child(pids, i);
-            printf("fork fail\n");
-            exit(1);
+            if (i == 0) {
+                printf("fork fail in racing proc\n");
+                exit(1);
+            } else {
+                printf(
+                    "can't fork enough race child, alloc %d child, but we can "
+                    "run test however\n",
+                    i);
+            }
+            break;
         } else if (pid == 0) {
             if (i) {
                 close(1);
@@ -78,6 +86,10 @@ int test_once(int child_proc_n, uint64 (*test)(const char *, uint64, uint64),
                     run("process racing test", test, iterations, test_limit);
                 }
             } else {
+                if (childprint == 0) {
+                    close(1);
+                }
+                read(pp_start[0], &n, 1);
                 n = run("process racing test", test, iterations, test_limit);
                 write(pp_time[1], &n, sizeof(uint64));
                 exit(0);
@@ -85,23 +97,30 @@ int test_once(int child_proc_n, uint64 (*test)(const char *, uint64, uint64),
         }
     }
 
+    write(pp_start[1], &n, 1);
     read(pp_time[0], &n, sizeof(uint64));
+    wait(NULL);
     uint64 time1 = n;
 
-    uint64 pid = fork();
+    int pid = fork();
     if (pid < 0) {
-        printf("fork fail\n");
-        exit(1);
+        printf("fork test process fail\n");
+        goto err_ret;
     } else if (pid == 0) {
         int err = create_proc_group();
         if (err == -1) {
             printf("create proc group fail\n");
+            write(pp_time[1], &n, sizeof(uint64));
             exit(1);
         }
         err = proc_occupy_cpu();
         if (err) {
             printf("proc occupy cpu fail\n");
+            write(pp_time[1], &n, sizeof(uint64));
             exit(1);
+        }
+        if (childprint == 0) {
+            close(1);
         }
         n = run("cpu exclusively test", test, iterations, test_limit);
         write(pp_time[1], &n, sizeof(uint64));
@@ -110,10 +129,25 @@ int test_once(int child_proc_n, uint64 (*test)(const char *, uint64, uint64),
 
     read(pp_time[0], &n, sizeof(uint64));
     uint64 time2 = n;
-    printf("process race: %l ticks, cpu exclusively: %l ticks\n", time1, time2);
+    if (childprint == 0) {
+        printf(
+            "  process race: %l ticks, %ls\n  cpu exclusively: %l ticks, %ls\n",
+            time1, time1 / CLOCKS_PER_SEC, time2, time2 / CLOCKS_PER_SEC);
+    } else {
+        printf("process race: %l ticks, cpu exclusively: %l ticks\n", time1,
+               time2);
+    }
 
+err_ret:
     kill_child(pids, child_proc_n);
-
+    while (wait(NULL) != -1) {
+    }
+    close(pp_time[0]);
+    close(pp_time[1]);
+    close(pp_end[0]);
+    close(pp_end[1]);
+    close(pp_start[0]);
+    close(pp_start[1]);
     return 0;
 }
 
@@ -155,7 +189,8 @@ uint64 parse_int_arg(int argc, char *argv[], int i, const char *pattern)
 
 int main(int argc, char *argv[])
 {
-    uint64 race_proc_n = 20, iterations = 5, test_limit = 10 * MILLION;
+    uint64 race_proc_n = 61, iterations = 5, test_limit = MILLION;
+    int longtest = 0;
     for (int i = 1; i < argc; i++) {
         int n = -1;
         if ((n = parse_int_arg(argc, argv, i, "-p")) != -1) {
@@ -164,6 +199,8 @@ int main(int argc, char *argv[])
             iterations = n;
         } else if ((n = parse_int_arg(argc, argv, i, "-l")) != -1) {
             test_limit = n * 100;
+        } else if ((n = parse_int_arg(argc, argv, i, "-T")) != -1) {
+            longtest = 1;
         }
         i++;
 
@@ -175,10 +212,29 @@ int main(int argc, char *argv[])
         }
     }
 
-    printf("start test, racing process number: %l, "
-           "iterations: %l, test_limit: %l * 100\n",
-           race_proc_n, iterations, test_limit / 100);
-    test_once(race_proc_n, prime_test, iterations, test_limit);
+    if (longtest == 0) {
+        printf("start test, racing process number: %l, "
+               "iterations: %l, test_limit: %l * 100\n",
+               race_proc_n, iterations, test_limit / 100);
+        test_once(1, race_proc_n, prime_test, iterations, test_limit);
+    } else {
+        for (int i = 0; i < longtest; i++) {
+            int t = 1;
+            printf("start longtest %d/%d\n\n", i + 1, longtest);
+            for (uint64 lim = test_limit; lim <= 5 * test_limit;
+                 lim += test_limit * 2) {
+                for (uint64 it = iterations; it <= 6 * iterations;
+                     it += iterations) {
+                    printf("start test %d, racing process number: %l, "
+                           "iterations: %l, test_limit: %l * 100\n",
+                           t, race_proc_n, it, lim / 100);
+                    test_once(0, race_proc_n, prime_test, it, lim);
+                    printf("\n");
+                    t++;
+                }
+            }
+        }
+    }
 
     return 0;
 }

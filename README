@@ -1,12 +1,37 @@
-tinyos
+myv6
 
-tinyos is a re-implementation of xv6. we add process group future in this tinyos, see user_space/ulib/sys_call.h to learn more.
+myv6 is a re-implementation of xv6. we add process group and CPU allocate future in this tiny os, see user_space/ulib/sys_call.h to learn more.
 
 
+
+<Run this os>:
+    Run *make q* under root directory of this project.
+    Run *make q cpus=N* to run in N cpus.
+    Run *make kernel_and_user* to compile the kernel, user space code and create fs.img.
+    Run *make all_asm* to dump all asm files from kernel's object files.
+
+    Run *make clean* to delte the generated files.
+    Make sure that you run *make clean* after you do any change to user_space. It will clean up fs.img, and when you run kernel it will create a new fs.img from user_space.
+    If you corrupt the filesystem, or you wan to run myv6 in a initial filesystem, run *make clean* to clean old filesystem and run *make q* to run os. 
+
+<Run this os in debug mode>:
+    Run *make db* in a terminal, then run *gdb-multiarch* in another terminal to attach the kernel and debug.
+
+<Tool-chain>:
+To run this os, you will need:
+    qemu-system-riscv64
+    riscv64-linux-gnu-gcc
+    riscv64-linux-gnu-as
+    riscv64-linux-gnu-ld
+To debug this os, you will need:
+    gdb-multiarch
+
+<By-the-way>:
+    Makefile is a ugly, hard to read, write, and anti-human design. So don't complain about my Makefile. I am too lazy to redesigning it.
+    By the way, if you have question about myv6, xv6 or other kernel like these kernel, you can try to ask me and I will reply if there is time.
 
 ## Third-party code
 
 - The filesystem module and some user space code use code from [xv6](https://github.com/mit-pdos/xv6-riscv) under the MIT license.
 
 - The Circular doubly linked list use code from [Linux Kernel Source (include/linux/list.h)](https://github.com/torvalds/linux/blob/master) under the GPL-2 license.
-

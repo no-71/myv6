@@ -2,6 +2,7 @@
 #define BASIC_TYPES_H_
 
 #define NULL ((void *)0)
+
 #define EOF (-1)
 
 enum { false, true };

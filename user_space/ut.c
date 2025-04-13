@@ -1,6 +1,6 @@
 /*
  * this test file used code from xv6 usertests.c,
- * we add some tests for system calls from tinyos.
+ * we add some tests for system calls from myv6.
  */
 
 #include "include/fs/memlayout.h"
@@ -11,7 +11,7 @@
 #include "ulib/user_all.h"
 
 //
-// Tests tinyos system calls.  usertests without arguments runs them all
+// Tests myv6 system calls.  usertests without arguments runs them all
 // and usertests <name> runs <name> test. The test runner creates for
 // each test a process and based on the exit status of the process,
 // the test runner reports "OK" or "FAILED".  Some tests result in
