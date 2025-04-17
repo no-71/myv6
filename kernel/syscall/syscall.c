@@ -179,7 +179,7 @@ uint64 syscall_proc_release_cpu(struct process *proc)
 
 uint64 syscall_inc_pg_cpus_flex(struct process *proc)
 {
-    return inc_proc_group_cpus_flex();
+    return inc_pgroup_cpus_flex();
 }
 
 // uint64 syscall_getc(struct process *proc) { return console_getc(); }

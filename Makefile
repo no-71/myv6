@@ -28,8 +28,8 @@ endif
 LDFLAGS = -z max-page-size=4096
 ldscrip = $(src)/kernel.ld
 
-# src dir head
-src := src
+# kernel src dir head
+src := kernel
 
 # include files
 include_dir_head := include .
@@ -97,7 +97,7 @@ user_out_initcode_bin_obj := $(subst .c,.o,$(user_out_initcode_bin_c))
 dump_asm_files := $(subst .o,.S,$(src_output_files)) $(user_exec_files)
 
 # the palce of the final output kernel
-the_kernel := $(output_dir_head)/kernel
+the_kernel := $(output_dir_head)/_kernel
 the_kernel_asm := $(addsuffix .S,$(the_kernel))
 
 ## fs.img
@@ -210,6 +210,12 @@ clean_except_fsimg:
 .PHONEY: clean
 clean:
 	rm -rf $(output_dir_head)/* $(fs_img)
+
+.PHONEY: qemu
+qemu: q
+	
+.PHONEY: qemu
+qemu-gdb: db
 
 ## debug
 .PHONEY: datas

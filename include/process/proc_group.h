@@ -65,7 +65,7 @@ void exit_pgroup(void);
 // process group syscall to operate cpus in group
 int pgroup_cpu_count(void);
 int inc_pgroup_cpus(void);
-int inc_proc_group_cpus_flex(void);
+int inc_pgroup_cpus_flex(void);
 int dec_pgroup_cpus(void);
 // for scheduler to use
 void handle_cpu_acquire(void);

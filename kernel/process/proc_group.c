@@ -457,7 +457,7 @@ int inc_pgroup_cpus(void)
     return 0;
 }
 
-int inc_proc_group_cpus_flex(void)
+int inc_pgroup_cpus_flex(void)
 {
     struct process *proc = my_proc();
     struct proc_group *pgroup = get_proc_group(proc->pgroup_id);

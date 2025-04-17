@@ -1,12 +1,13 @@
 myv6
 
-myv6 is a re-implementation of xv6. we add process group and CPU allocate future in this tiny os, see user_space/ulib/sys_call.h to learn more.
+myv6 is a re-implementation of xv6, which is a re-implementation of UNIX v6.
+we add process group and CPU allocation future in this tiny os, see user_space/ulib/sys_call.h to learn more. kernel code about these future are kernel/process/proc_group.c, kernel/process/cpu_message.c and kernel/scheduler/scheduler.c.
 
 
 
 <Run this os>:
-    Run *make q* under root directory of this project.
-    Run *make q cpus=N* to run in N cpus.
+    Run *make qemu* or *make q* under root directory of this project.
+    Run *make qemu cpus=N* to run in N cpus.
     Run *make kernel_and_user* to compile the kernel, user space code and create fs.img.
     Run *make all_asm* to dump all asm files from kernel's object files.
 
@@ -15,10 +16,14 @@ myv6 is a re-implementation of xv6. we add process group and CPU allocate future
     If you corrupt the filesystem, or you wan to run myv6 in a initial filesystem, run *make clean* to clean old filesystem and run *make q* to run os. 
 
 <Run this os in debug mode>:
-    Run *make db* in a terminal, then run *gdb-multiarch* in another terminal to attach the kernel and debug.
+    Run *make qemu-gdb* or *make db* in a terminal, then run *gdb-multiarch* in another terminal to attach the kernel and debug.
+
+<Test>
+    Run *make qemu*, then run *ut* in the shell to check if the kernel is working.
 
 <Tool-chain>:
 To run this os, you will need:
+    make
     qemu-system-riscv64
     riscv64-linux-gnu-gcc
     riscv64-linux-gnu-as
@@ -26,9 +31,11 @@ To run this os, you will need:
 To debug this os, you will need:
     gdb-multiarch
 
-<By-the-way>:
+<By the way>:
     Makefile is a ugly, hard to read, write, and anti-human design. So don't complain about my Makefile. I am too lazy to redesigning it.
     By the way, if you have question about myv6, xv6 or other kernel like these kernel, you can try to ask me and I will reply if there is time.
+
+
 
 ## Third-party code
 
