@@ -33,7 +33,6 @@ To debug this os, you will need:
 
 <By the way>:
     Makefile is a ugly, hard to read, write, and anti-human design. So don't complain about my Makefile. I am too lazy to redesigning it.
-    By the way, if you have question about myv6, xv6 or other kernel like these kernel, you can try to ask me and I will reply if there is time.
 
 
 
